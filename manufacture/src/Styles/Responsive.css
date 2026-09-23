@@ -1,0 +1,60 @@
+@media (max-width: 980px) {
+  .feature-header,
+  .topbar,
+  .welcome-panel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .summary-grid,
+  .data-grid,
+  .inventory-cards,
+  .attendance-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page-shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    position: static;
+    height: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .content-area {
+    padding: 18px 14px 22px;
+  }
+
+  .sidebar {
+    padding: 18px 12px;
+  }
+
+  .sidebar-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-grid,
+  .data-grid,
+  .inventory-cards,
+  .attendance-metrics,
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .content-panel,
+  .panel-card,
+  .summary-card,
+  .welcome-panel {
+    border-radius: 16px;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}

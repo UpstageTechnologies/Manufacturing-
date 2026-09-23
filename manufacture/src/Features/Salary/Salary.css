@@ -1,0 +1,18 @@
+.salary-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-weight: 700;
+  font-size: 0.76rem;
+}
+
+.salary-status.paid {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.salary-status.pending {
+  background: #fff7ed;
+  color: #c2410c;
+}

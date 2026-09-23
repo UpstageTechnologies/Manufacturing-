@@ -1,0 +1,139 @@
+.feature-page {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 10px 0;
+}
+
+.feature-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.content-panel {
+  background: #fff;
+  border: 1px solid #edf1f2;
+  border-radius: 20px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  padding: 22px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-group label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.field-group input,
+.field-group select {
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.96rem;
+  color: #111827;
+  outline: none;
+}
+
+.field-group input:focus,
+.field-group select:focus {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.08);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.stats-row {
+  display: flex;
+  gap: 18px;
+}
+
+.mini-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid #edf1f2;
+  border-radius: 16px;
+  padding: 14px 18px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.mini-stat svg {
+  width: 24px;
+  height: 24px;
+  color: #10b981;
+}
+
+.mini-stat small {
+  display: block;
+  color: #6b7280;
+}
+
+.mini-stat strong {
+  display: block;
+  font-size: 1.2rem;
+}
+
+.erp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.erp-table th,
+.erp-table td {
+  padding: 14px 10px;
+  border-bottom: 1px solid #eef2f6;
+  text-align: left;
+}
+
+.erp-table th {
+  color: #6b7280;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.table-action {
+  border: none;
+  background: #ecfdf5;
+  color: #047857;
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  .feature-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .erp-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}

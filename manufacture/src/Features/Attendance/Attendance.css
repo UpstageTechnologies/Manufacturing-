@@ -1,0 +1,93 @@
+.table-actions.compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 50;
+}
+
+.modal-card {
+  width: min(100%, 480px);
+  background: #fff;
+  border: 1px solid #edf1f2;
+  border-radius: 20px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.15);
+  padding: 22px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.modal-header h3 {
+  margin: 0;
+}
+
+.modal-close {
+  border: none;
+  background: #f3f4f6;
+  color: #111827;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.status-select {
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.input-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0 12px;
+}
+
+.input-with-icon svg {
+  color: #6b7280;
+}
+
+.input-with-icon input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  padding: 12px 0;
+  outline: none;
+}
