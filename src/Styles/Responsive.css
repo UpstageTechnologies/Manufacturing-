@@ -1,0 +1,184 @@
+ .mobile-nav-header,
+ .mobile-menu-button {
+  display: none;
+}
+
+@media (max-width: 980px) {
+  .feature-header,
+  .topbar,
+  .welcome-panel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .summary-grid,
+  .data-grid,
+  .inventory-cards,
+  .attendance-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page-shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    position: static;
+    height: auto;
+  }
+}
+
+@media (max-width: 1024px) {
+  .page-shell {
+    display: flex;
+    min-width: 0;
+    position: relative;
+  }
+
+  .mobile-nav-header {
+    --mobile-nav-height: 68px;
+    width: 100%;
+    height: var(--mobile-nav-height);
+    position: relative;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+    color: #e5e7eb;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  }
+
+  .mobile-nav-header .sidebar-brand {
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+    border-bottom: none;
+  }
+
+  .mobile-brand-button {
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .mobile-menu-button {
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #ffffff;
+  }
+
+  .sidebar {
+    display: none;
+    position: absolute;
+    top: 68px;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100vh - 68px);
+    overflow-y: auto;
+    padding: 12px 16px 16px;
+    border-right: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  }
+
+  .sidebar.menu-open {
+    display: flex;
+  }
+
+  .sidebar > .sidebar-brand {
+    display: none;
+  }
+
+  .sidebar-nav {
+    width: 100%;
+    margin-top: 0;
+    gap: 6px;
+  }
+
+  .nav-item,
+  .sidebar-link {
+    min-height: 44px;
+  }
+
+  .content-area {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  html,
+  body,
+  #root {
+    overflow-x: hidden;
+  }
+
+  .content-area {
+    padding: 16px 12px 22px;
+  }
+
+  .sidebar {
+    padding: 18px 12px;
+  }
+
+  .mobile-nav-header {
+    --mobile-nav-height: 64px;
+    padding: 12px 14px;
+  }
+
+  .sidebar {
+    top: 64px;
+    max-height: calc(100vh - 64px);
+  }
+
+  .sidebar-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-grid,
+  .data-grid,
+  .inventory-cards,
+  .attendance-metrics,
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .content-panel,
+  .panel-card,
+  .summary-card,
+  .welcome-panel {
+    border-radius: 16px;
+  }
+
+  .dashboard-main,
+  .feature-page {
+    gap: 16px;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  th,
+  td {
+    padding: 10px 8px;
+    font-size: 0.86rem;
+  }
+}
