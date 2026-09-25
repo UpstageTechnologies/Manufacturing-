@@ -32,10 +32,11 @@ const initialData = {
     { id: 9, stageName: 'Storage / Dispatch', description: 'Packed material is stored or prepared for dispatch.', workerType: 'Warehouse Team', quantity: 1150, unit: 'Bags', status: 'Pending', image: '' },
   ],
   employees: [
-    { id: 1, name: 'Alicia Smith', address: '32 Oak Avenue', phone: '+1 245 678 9023', salary: 35000, status: 'Present' },
-    { id: 2, name: 'Samuel Lee', address: '12 Maple Road', phone: '+1 245 900 7745', salary: 42500, status: 'Late' },
-    { id: 3, name: 'Ritika Shah', address: '7 Pine Lane', phone: '+1 245 812 6630', salary: 28800, status: 'Absent' },
+    { id: 1, name: 'Alicia Smith', address: '32 Oak Avenue', phone: '+1 245 678 9023', salary: 35000, salaryPeriod: 'Monthly', status: 'Present' },
+    { id: 2, name: 'Samuel Lee', address: '12 Maple Road', phone: '+1 245 900 7745', salary: 42500, salaryPeriod: 'Monthly', status: 'Late' },
+    { id: 3, name: 'Ritika Shah', address: '7 Pine Lane', phone: '+1 245 812 6630', salary: 28800, salaryPeriod: 'Monthly', status: 'Absent' },
   ],
+  attendance: {},
   salary: [
     { id: 1, employee: 'Alicia Smith', amount: 35000, date: '2026-06-12', status: 'Paid' },
     { id: 2, employee: 'Samuel Lee', amount: 42500, date: '2026-06-06', status: 'Pending' },
@@ -76,6 +77,7 @@ export function ERPProvider({ children }) {
     addEmployee: (record) => setData((prev) => ({ ...prev, employees: [{ ...record, id: Date.now() }, ...prev.employees] })),
     updateEmployee: (id, record) => setData((prev) => ({ ...prev, employees: prev.employees.map((item) => item.id === id ? { ...item, ...record } : item) })),
     deleteEmployee: (id) => setData((prev) => ({ ...prev, employees: prev.employees.filter((item) => item.id !== id) })),
+    saveAttendance: (date, records) => setData((prev) => ({ ...prev, attendance: { ...(prev.attendance || {}), [date]: records } })),
     addSalary: (record) => setData((prev) => ({ ...prev, salary: [{ ...record, id: Date.now() }, ...prev.salary] })),
   }), [data]);
 

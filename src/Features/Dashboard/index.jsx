@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { FiBell, FiChevronDown, FiCreditCard, FiDollarSign, FiMenu, FiPackage, FiTrendingUp, FiUsers, FiX } from 'react-icons/fi';
+import { FiChevronDown, FiCreditCard, FiMenu, FiPackage, FiTrendingUp, FiUsers, FiX } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency, formatDate, useERP } from '../../State/ERPContext';
 import './Dashboard.css';
+import { FaRupeeSign } from 'react-icons/fa';
 
 function DashboardPage() {
   const navigate = useNavigate();
@@ -11,7 +12,7 @@ function DashboardPage() {
   const summaryCards = [
     { label: 'Income', value: formatCurrency(income.reduce((total, item) => total + Number(item.amount), 0)), change: 'Live', icon: FiTrendingUp, tone: 'emerald' },
     { label: 'Expense', value: formatCurrency(expense.reduce((total, item) => total + Number(item.amount), 0)), change: 'Live', icon: FiCreditCard, tone: 'red' },
-    { label: 'Salary', value: formatCurrency(salary.reduce((total, item) => total + Number(item.amount), 0)), change: 'Live', icon: FiDollarSign, tone: 'blue' },
+    { label: 'Salary', value: formatCurrency(salary.reduce((total, item) => total + Number(item.amount), 0)), change: 'Live', icon: FaRupeeSign, tone: 'blue' },
     { label: 'Employees', value: employees.length, change: 'Live', icon: FiUsers, tone: 'purple' },
   ];
   const incomeRows = income.slice(0, 3).map((item) => ({ name: item.title, amount: formatCurrency(item.amount), date: formatDate(item.date) }));
@@ -54,7 +55,7 @@ function DashboardPage() {
             <span>Dashboard</span>
           </button>
           <button type="button" className="nav-item" onClick={() => { setIsMenuOpen(false); navigate('/income'); }}>
-            <FiDollarSign />
+            <FaRupeeSign />
             <span>Income</span>
           </button>
           <button type="button" className="nav-item" onClick={() => { setIsMenuOpen(false); navigate('/expense'); }}>
@@ -89,9 +90,6 @@ function DashboardPage() {
           </div>
 
           <div className="topbar-actions">
-            <button type="button" className="icon-button" aria-label="Notifications">
-              <FiBell />
-            </button>
             <div className="profile-pill">
               <div className="mini-avatar">AK</div>
               <div>

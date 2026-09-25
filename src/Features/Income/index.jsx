@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiPlus, FiDollarSign, FiTrash2 } from 'react-icons/fi';
+import { FiTrash2 } from 'react-icons/fi';
 import { formatCurrency, formatDate, useERP } from '../../State/ERPContext';
 import './Income.css';
 
@@ -22,9 +22,6 @@ function IncomePage() {
           <p className="eyebrow">Finance</p>
           <h1 className="page-title">Income</h1>
         </div>
-        <button type="button" className="primary-button">
-          <FiPlus /> Add Income
-        </button>
       </div>
 
       <form className="content-panel form-panel" onSubmit={handleSubmit}>
@@ -35,7 +32,7 @@ function IncomePage() {
           </div>
           <div className="field-group">
             <label>Amount</label>
-            <input type="number" min="0" placeholder="5000" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
+            <input type="number" min="0" placeholder="Enter Amount" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
           </div>
           <div className="field-group">
             <label>Date</label>
@@ -50,7 +47,7 @@ function IncomePage() {
 
       <div className="stats-row">
         <div className="mini-stat">
-          <FiDollarSign />
+          <span className="currency-symbol" aria-label="Indian Rupee symbol">₹</span>
           <div>
             <small>Total Income</small>
             <strong>{formatCurrency(income.reduce((total, item) => total + Number(item.amount), 0))}</strong>

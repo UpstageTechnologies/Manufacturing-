@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiPlus, FiTrendingDown, FiTrash2 } from 'react-icons/fi';
+import { FiTrendingDown, FiTrash2 } from 'react-icons/fi';
 import { formatCurrency, formatDate, useERP } from '../../State/ERPContext';
 import './Expense.css';
 
@@ -22,20 +22,17 @@ function ExpensePage() {
           <p className="eyebrow">Operations</p>
           <h1 className="page-title">Expense</h1>
         </div>
-        <button type="button" className="primary-button">
-          <FiPlus /> Add Expense
-        </button>
       </div>
 
       <form className="content-panel form-panel" onSubmit={handleSubmit}>
         <div className="field-grid">
           <div className="field-group">
             <label>Expense Name</label>
-            <input type="text" placeholder="Purchase order" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+            <input type="text" placeholder="Enter expense name" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
           </div>
           <div className="field-group">
             <label>Amount</label>
-            <input type="number" min="0" placeholder="5000" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
+            <input type="number" min="0" placeholder="Enter amount" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
           </div>
           <div className="field-group">
             <label>Date</label>

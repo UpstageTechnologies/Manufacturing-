@@ -1,3 +1,69 @@
+.attendance-date-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.attendance-date-controls strong {
+  min-width: 120px;
+  text-align: center;
+}
+
+.attendance-date-controls .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #dfe7e4;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+}
+
+.attendance-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.attendance-status-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  background: #f9fafb;
+  color: #6b7280;
+}
+
+.attendance-status-button.present.selected {
+  background: #ecfdf5;
+  border-color: #86efac;
+  color: #047857;
+}
+
+.attendance-status-button.late.selected {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #c2410c;
+}
+
+.attendance-status-button.absent.selected {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.currency-symbol {
+  color: #6b7280;
+  font-weight: 700;
+}
+
 .table-actions.compact {
   display: flex;
   align-items: center;
@@ -90,4 +156,19 @@
   width: 100%;
   padding: 12px 0;
   outline: none;
+}
+
+@media (max-width: 640px) {
+  .attendance-date-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .attendance-date-controls strong {
+    flex: 1;
+  }
+
+  .attendance-status-actions {
+    justify-content: flex-start;
+  }
 }

@@ -28,9 +28,6 @@ function SalaryPage() {
           <p className="eyebrow">Payroll</p>
           <h1 className="page-title">Salary</h1>
         </div>
-        <button type="button" className="primary-button">
-          <FiPlus /> Pay Salary
-        </button>
       </div>
 
       <form className="content-panel form-panel" onSubmit={handleSubmit}>
@@ -45,7 +42,7 @@ function SalaryPage() {
           </div>
           <div className="field-group">
             <label>Salary Amount</label>
-            <input type="number" min="0" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
+            <input type="number" min="0" placeholder='Enter Salary Amount'  onChange={(event) => setForm({ ...form, amount: event.target.value })} />
           </div>
           <div className="field-group">
             <label>Date</label>

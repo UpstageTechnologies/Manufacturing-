@@ -13,6 +13,8 @@ const defaultStageForm = {
   image: '',
 };
 
+const MAX_PROGRESS_STEPS = 9;
+
 function InventoryPage() {
   const {
     inventory,
@@ -61,6 +63,7 @@ function InventoryPage() {
       return haystack.includes(stageQuery.toLowerCase());
     })
     .filter((stage) => stageFilter === 'All' || stage.status === stageFilter);
+  const progressStages = visibleStages.slice(0, MAX_PROGRESS_STEPS);
 
   const openNew = () => { setEditingId(null); setForm({ item: '', qty: '', price: '', category: 'Raw Materials' }); setIsOpen(true); };
   const openEdit = (item) => { setEditingId(item.id); setForm({ item: item.item, qty: item.qty, price: item.price, category: item.category }); setIsOpen(true); };
@@ -256,7 +259,7 @@ function InventoryPage() {
         </div>
 
         <div className="process-flow">
-          {visibleStages.map((stage, index) => (
+          {progressStages.map((stage, index) => (
             <div key={stage.id} className="process-step-wrap">
               <div className="process-step-card">
                 <div className="process-image-box">
@@ -305,7 +308,7 @@ function InventoryPage() {
                 </div>
               </div>
 
-              {index < visibleStages.length - 1 && (
+              {index < progressStages.length - 1 && (
                 <div className="process-arrow">
                   <FiArrowDown />
                 </div>

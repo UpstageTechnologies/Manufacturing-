@@ -32,7 +32,7 @@ function LoginPage() {
             <label htmlFor="email">Email</label>
             <div className="input-wrap">
               <FiMail />
-              <input id="email" type="email" placeholder="name@company.com" defaultValue="admin@manufacture.com" />
+              <input id="email" type="email" placeholder="name@company.com" />
             </div>
           </div>
 
@@ -43,7 +43,7 @@ function LoginPage() {
             </div>
             <div className="input-wrap">
               <FiLock />
-              <input id="password" type="password" placeholder="Enter password" defaultValue="password123" />
+              <input id="password" type="password" placeholder="Enter password" />
             </div>
           </div>
 
