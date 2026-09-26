@@ -113,6 +113,21 @@
   .sidebar-link {
     min-height: 44px;
   }
+  .sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: transparent;
+    color: #dbe8e3;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+  }
 
   .content-area {
     width: 100%;

@@ -41,13 +41,13 @@ function DashboardPage() {
         </button>
       </div>
       <aside className={`sidebar${isMenuOpen ? ' menu-open' : ''}`}>
-        <div className="sidebar-brand">
+        <button type="button" className="sidebar-brand" onClick={() => { setIsMenuOpen(false); navigate('/dashboard'); }}>
           <div className="brand-mark">M</div>
           <div>
             <strong>Manufacture</strong>
             <small>ERP</small>
           </div>
-        </div>
+        </button>
 
         <nav id="dashboard-navigation" className="sidebar-nav">
           <button type="button" className="nav-item active" onClick={() => { setIsMenuOpen(false); navigate('/dashboard'); }}>

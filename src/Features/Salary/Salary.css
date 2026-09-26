@@ -16,3 +16,71 @@
   background: #fff7ed;
   color: #c2410c;
 }
+
+.salary-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.salary-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+}
+
+.salary-summary-card span {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.salary-summary-card strong {
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.salary-summary-card.highlight {
+  background: #edf8ff;
+  border-color: #bfdbfe;
+}
+
+.report-panel {
+  gap: 12px;
+}
+
+.report-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.report-stat-row span {
+  color: #64748b;
+}
+
+.balance-row {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+@media (max-width: 720px) {
+  .salary-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 360px) {
+  .salary-summary {
+    grid-template-columns: 1fr;
+  }
+}

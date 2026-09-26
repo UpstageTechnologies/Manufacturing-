@@ -37,6 +37,7 @@ const initialData = {
     { id: 3, name: 'Ritika Shah', address: '7 Pine Lane', phone: '+1 245 812 6630', salary: 28800, salaryPeriod: 'Monthly', status: 'Absent' },
   ],
   attendance: {},
+  ledger: [],
   salary: [
     { id: 1, employee: 'Alicia Smith', amount: 35000, date: '2026-06-12', status: 'Paid' },
     { id: 2, employee: 'Samuel Lee', amount: 42500, date: '2026-06-06', status: 'Pending' },
@@ -78,6 +79,7 @@ export function ERPProvider({ children }) {
     updateEmployee: (id, record) => setData((prev) => ({ ...prev, employees: prev.employees.map((item) => item.id === id ? { ...item, ...record } : item) })),
     deleteEmployee: (id) => setData((prev) => ({ ...prev, employees: prev.employees.filter((item) => item.id !== id) })),
     saveAttendance: (date, records) => setData((prev) => ({ ...prev, attendance: { ...(prev.attendance || {}), [date]: records } })),
+    addLedgerEntry: (record) => setData((prev) => ({ ...prev, ledger: [{ ...record, id: Date.now() }, ...prev.ledger] })),
     addSalary: (record) => setData((prev) => ({ ...prev, salary: [{ ...record, id: Date.now() }, ...prev.salary] })),
   }), [data]);
 

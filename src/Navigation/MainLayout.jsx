@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FiCreditCard, FiDollarSign, FiMenu, FiPackage, FiTrendingUp, FiUsers, FiX } from 'react-icons/fi';
+import { FaRupeeSign } from 'react-icons/fa';
+import { FiCreditCard, FiMenu, FiPackage, FiTrendingUp, FiUsers, FiX } from 'react-icons/fi';
 import { NavLink, useNavigate } from 'react-router-dom';
 import '../Features/Dashboard/Dashboard.css';
 
@@ -8,7 +9,7 @@ function MainLayout({ children }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const links = [
     { path: '/dashboard', label: 'Dashboard', icon: FiTrendingUp },
-    { path: '/income', label: 'Income', icon: FiDollarSign },
+    { path: '/income', label: 'Income', icon: FaRupeeSign },
     { path: '/expense', label: 'Expense', icon: FiCreditCard },
     { path: '/inventory', label: 'Inventory', icon: FiPackage },
     { path: '/salary', label: 'Salary', icon: FiUsers },
@@ -30,7 +31,7 @@ function MainLayout({ children }) {
         </button>
       </div>
       <aside className={`sidebar${isMenuOpen ? ' menu-open' : ''}`}>
-        <div className="sidebar-brand"><div className="brand-mark">M</div><div><strong>Manufacture</strong><small>ERP</small></div></div>
+        <button type="button" className="sidebar-brand" onClick={() => { setIsMenuOpen(false); navigate('/dashboard'); }}><div className="brand-mark">M</div><div><strong>Manufacture</strong><small>ERP</small></div></button>
         <nav id="main-navigation" className="sidebar-nav">
           {links.map(({ path, label, icon: Icon }) => <NavLink key={path} to={path} onClick={() => setIsMenuOpen(false)} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}><Icon /><span>{label}</span></NavLink>)}
         </nav>
