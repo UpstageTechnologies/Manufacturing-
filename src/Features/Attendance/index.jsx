@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FiPlus, FiEdit2, FiTrash2, FiPhone, FiCheckCircle, FiXCircle, FiClock, FiChevronLeft, FiChevronRight, FiSave } from 'react-icons/fi';
 import { formatCurrency, useERP } from '../../State/ERPContext';
 import './Attendance.css';
@@ -26,7 +26,8 @@ function AttendancePage() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(getToday);
-  const [attendanceDraft, setAttendanceDraft] = useState(() => attendance?.[getToday()] || Object.fromEntries(employees.map((employee) => [employee.id, employee.status || 'Present'])));
+  const [systemDate, setSystemDate] = useState(getToday);
+  const [attendanceDraft, setAttendanceDraft] = useState(() => attendance?.[getToday()] || {});
   const [form, setForm] = useState({
     name: '',
     address: '',
@@ -35,15 +36,32 @@ function AttendancePage() {
     salaryPeriod: 'Monthly',
   });
 
+  useEffect(() => {
+    const refreshSystemDate = () => setSystemDate(getToday());
+    const intervalId = window.setInterval(refreshSystemDate, 60 * 1000);
+    window.addEventListener('focus', refreshSystemDate);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshSystemDate);
+    };
+  }, []);
+
+  const canEditSelectedDate = selectedDate === systemDate;
+
   const selectDate = (amount) => {
     const nextDate = shiftDate(selectedDate, amount);
-    const defaultAttendance = Object.fromEntries(employees.map((employee) => [employee.id, employee.status || 'Present']));
     setSelectedDate(nextDate);
-    setAttendanceDraft(attendance?.[nextDate] || defaultAttendance);
+    setAttendanceDraft(attendance?.[nextDate] || {});
   };
 
   const handleSaveAttendance = () => {
-    const records = Object.fromEntries(employees.map((employee) => [employee.id, attendanceDraft[employee.id] || employee.status || 'Present']));
+    if (selectedDate !== getToday()) {
+      setSystemDate(getToday());
+      return;
+    }
+    const records = Object.fromEntries(employees
+      .filter((employee) => statusOptions.includes(attendanceDraft[employee.id]))
+      .map((employee) => [employee.id, attendanceDraft[employee.id]]));
     saveAttendance(selectedDate, records);
     setAttendanceDraft(records);
   };
@@ -63,7 +81,6 @@ function AttendancePage() {
       phone: form.phone,
       salary: Number(form.salary),
       salaryPeriod: form.salaryPeriod,
-      status: 'Present',
     };
 
     if (editingId) updateEmployee(editingId, newEmployee);
@@ -93,7 +110,7 @@ function AttendancePage() {
       <div className="content-panel">
         <div className="panel-header">
           <h3>Employee List</h3>
-          <button type="button" className="primary-button" onClick={handleSaveAttendance}>
+          <button type="button" className="primary-button" onClick={handleSaveAttendance} disabled={!canEditSelectedDate}>
             <FiSave /> Save Attendance
           </button>
         </div>
@@ -127,12 +144,17 @@ function AttendancePage() {
                           className={`attendance-status-button ${status.toLowerCase()}${attendanceDraft[employee.id] === status ? ' selected' : ''}`}
                           aria-label={`${status} for ${employee.name}`}
                           aria-pressed={attendanceDraft[employee.id] === status}
-                          onClick={() => setAttendanceDraft((draft) => ({ ...draft, [employee.id]: status }))}
+                          disabled={!canEditSelectedDate}
+                          onClick={() => {
+                            if (selectedDate === getToday()) setAttendanceDraft((draft) => ({ ...draft, [employee.id]: status }));
+                            else setSystemDate(getToday());
+                          }}
                         >
                           <StatusIcon />
                         </button>
                       );
                     })}
+                    <span>{attendanceDraft[employee.id] || 'Not Marked'}</span>
                   </div>
                 </td>
                 <td>

@@ -8,7 +8,7 @@ import { FaRupeeSign } from 'react-icons/fa';
 function DashboardPage() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { income, expense, employees, salary } = useERP();
+  const { income, expense, employees, salary, attendance } = useERP();
   const summaryCards = [
     { label: 'Income', value: formatCurrency(income.reduce((total, item) => total + Number(item.amount), 0)), change: 'Live', icon: FiTrendingUp, tone: 'emerald' },
     { label: 'Expense', value: formatCurrency(expense.reduce((total, item) => total + Number(item.amount), 0)), change: 'Live', icon: FiCreditCard, tone: 'red' },
@@ -17,8 +17,13 @@ function DashboardPage() {
   ];
   const incomeRows = income.slice(0, 3).map((item) => ({ name: item.title, amount: formatCurrency(item.amount), date: formatDate(item.date) }));
   const expenseRows = expense.slice(0, 3).map((item) => ({ name: item.title, amount: formatCurrency(item.amount), date: formatDate(item.date) }));
-  const attendanceCounts = employees.reduce((counts, employee) => ({ ...counts, [employee.status]: counts[employee.status] + 1 }), { Present: 0, Late: 0, Absent: 0 });
   const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const todayAttendance = attendance?.[todayKey] || {};
+  const attendanceCounts = employees.reduce((counts, employee) => {
+    const status = todayAttendance[employee.id];
+    return status in counts ? { ...counts, [status]: counts[status] + 1 } : counts;
+  }, { Present: 0, Late: 0, Absent: 0 });
   const formattedDate = today.toLocaleDateString('en-IN', {
     weekday: 'long',
     day: 'numeric',

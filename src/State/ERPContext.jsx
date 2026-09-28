@@ -3,6 +3,13 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 const STORAGE_KEY = 'manufacture-erp-data';
 
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const initialData = {
   income: [
     { id: 1, title: 'Product Sales', amount: 52000, date: '2026-06-12' },
@@ -32,23 +39,45 @@ const initialData = {
     { id: 9, stageName: 'Storage / Dispatch', description: 'Packed material is stored or prepared for dispatch.', workerType: 'Warehouse Team', quantity: 1150, unit: 'Bags', status: 'Pending', image: '' },
   ],
   employees: [
-    { id: 1, name: 'Alicia Smith', address: '32 Oak Avenue', phone: '+1 245 678 9023', salary: 35000, salaryPeriod: 'Monthly', status: 'Present' },
-    { id: 2, name: 'Samuel Lee', address: '12 Maple Road', phone: '+1 245 900 7745', salary: 42500, salaryPeriod: 'Monthly', status: 'Late' },
-    { id: 3, name: 'Ritika Shah', address: '7 Pine Lane', phone: '+1 245 812 6630', salary: 28800, salaryPeriod: 'Monthly', status: 'Absent' },
+    { id: 1, name: 'Ram', address: '32 nagercoil', phone: '+91 456 738 9432', salary: 5000, salaryPeriod: 'Monthly' },
+    { id: 2, name: 'Theva', address: '12 main street', phone: '+91 245 900 7745', salary: 8500, salaryPeriod: 'Monthly' },
+    { id: 3, name: 'Priya', address: '7 kanyakumari', phone: '+91 245 812 6630', salary: 8800, salaryPeriod: 'Monthly' },
   ],
   attendance: {},
   ledger: [],
   salary: [
-    { id: 1, employee: 'Alicia Smith', amount: 35000, date: '2026-06-12', status: 'Paid' },
-    { id: 2, employee: 'Samuel Lee', amount: 42500, date: '2026-06-06', status: 'Pending' },
-    { id: 3, employee: 'Ritika Shah', amount: 28800, date: '2026-06-01', status: 'Paid' },
+    { id: 1, employee: 'Ram', amount: 5000, date: '2026-06-12', status: 'Paid' },
+    { id: 2, employee: 'Theva', amount: 8500, date: '2026-06-06', status: 'Pending' },
+    { id: 3, employee: 'Priya', amount: 8800, date: '2026-06-01', status: 'Paid' },
   ],
 };
 
 function readStoredData() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? { ...initialData, ...JSON.parse(stored) } : initialData;
+    if (!stored) return initialData;
+
+    const storedData = JSON.parse(stored);
+    const employeeNames = new Map();
+    const employees = (storedData.employees || initialData.employees).map((employee) => {
+      const nameById = { 1: 'Ram', 2: 'Theva', 3: 'Priya' };
+      const name = nameById[employee.id] || employee.name;
+      if (employee.name !== name) employeeNames.set(employee.name.toLowerCase(), name);
+      const normalizedEmployee = { ...employee, name };
+      delete normalizedEmployee.status;
+      return normalizedEmployee;
+    });
+    const renameHistoryEmployee = (record) => {
+      const name = employeeNames.get(record.employee?.toLowerCase());
+      return name ? { ...record, employee: name } : record;
+    };
+    return {
+      ...initialData,
+      ...storedData,
+      employees,
+      salary: (storedData.salary || initialData.salary).map(renameHistoryEmployee),
+      ledger: (storedData.ledger || initialData.ledger).map(renameHistoryEmployee),
+    };
   } catch {
     return initialData;
   }
@@ -78,7 +107,16 @@ export function ERPProvider({ children }) {
     addEmployee: (record) => setData((prev) => ({ ...prev, employees: [{ ...record, id: Date.now() }, ...prev.employees] })),
     updateEmployee: (id, record) => setData((prev) => ({ ...prev, employees: prev.employees.map((item) => item.id === id ? { ...item, ...record } : item) })),
     deleteEmployee: (id) => setData((prev) => ({ ...prev, employees: prev.employees.filter((item) => item.id !== id) })),
-    saveAttendance: (date, records) => setData((prev) => ({ ...prev, attendance: { ...(prev.attendance || {}), [date]: records } })),
+    saveAttendance: (date, records) => {
+      if (date !== getLocalDateString()) return;
+      setData((prev) => ({
+        ...prev,
+        attendance: {
+          ...(prev.attendance || {}),
+          [date]: { ...(prev.attendance?.[date] || {}), ...records },
+        },
+      }));
+    },
     addLedgerEntry: (record) => setData((prev) => ({ ...prev, ledger: [{ ...record, id: Date.now() }, ...prev.ledger] })),
     addSalary: (record) => setData((prev) => ({ ...prev, salary: [{ ...record, id: Date.now() }, ...prev.salary] })),
   }), [data]);
@@ -90,6 +128,40 @@ export function useERP() {
   const context = useContext(ERPContext);
   if (!context) throw new Error('useERP must be used inside ERPProvider');
   return context;
+}
+
+export function calculateEmployeePayroll(employee, attendance = {}, ledger = [], salary = []) {
+  if (!employee) {
+    return { presentDays: 0, earned: 0, advances: 0, deductions: 0, other: 0, paid: 0, balance: 0 };
+  }
+
+  const periodDays = {
+    'Per Day': 1,
+    '7 Days / Weekly': 7,
+    '15 Days / Bi-weekly': 15,
+    Monthly: 30,
+  }[employee.salaryPeriod] || 30;
+  const presentDays = Object.values(attendance || {}).reduce((total, dayRecords) => {
+    const status = dayRecords?.[employee.id];
+    return total + (status === 'Present' || status === 'Late' ? 1 : 0);
+  }, 0);
+  const earned = (Number(employee.salary || 0) / periodDays) * presentDays;
+  const employeeLedger = (ledger || []).filter((entry) => entry.employee === employee.name);
+  const advances = employeeLedger
+    .filter((entry) => !entry.type || entry.type === 'Advance')
+    .reduce((total, entry) => total + Number(entry.amount || 0), 0);
+  const deductions = employeeLedger
+    .filter((entry) => entry.type === 'Deduction' || entry.type === 'Pattu')
+    .reduce((total, entry) => total + Number(entry.amount || 0), 0);
+  const other = employeeLedger
+    .filter((entry) => entry.type === 'Other')
+    .reduce((total, entry) => total + Number(entry.amount || 0), 0);
+  const salaryPaid = (salary || [])
+    .filter((record) => record.employee === employee.name && record.status === 'Paid')
+    .reduce((total, record) => total + Number(record.amount || 0), 0);
+  const paid = advances + salaryPaid;
+
+  return { presentDays, earned, advances, deductions, other, paid, balance: earned - paid - deductions };
 }
 
 export const formatCurrency = (amount) => `₹ ${Number(amount).toLocaleString('en-IN')}`;

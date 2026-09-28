@@ -220,7 +220,7 @@ function SalaryPage() {
                 <label>Type</label>
                 <select value={ledgerForm.type} onChange={(event) => setLedgerForm({ ...ledgerForm, type: event.target.value })}>
                   <option value="Advance">Advance</option>
-                  <option value="Pattu">Patru</option>
+                  <option value="Deduction">Deduction</option>
                   <option value="Other">Other</option>
                 </select>
               </div>

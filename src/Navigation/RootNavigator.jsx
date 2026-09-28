@@ -55,7 +55,7 @@ function RootNavigator() {
             </div>
 
             <div className="modal-form">
-              <p>Do you want to exit?</p>
+              <p>Are you sure you want to exit?</p>
               <div className="form-actions">
                 <button type="button" className="primary-button" onClick={handleExitConfirm}>Yes</button>
                 <button type="button" className="secondary-button" onClick={() => setIsExitOpen(false)}>No</button>

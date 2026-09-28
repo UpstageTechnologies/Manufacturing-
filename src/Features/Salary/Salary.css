@@ -53,6 +53,26 @@
   gap: 12px;
 }
 
+.salary-modal-card {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.report-history-table {
+  display: block;
+  width: 100%;
+  min-width: 520px;
+  overflow-x: auto;
+}
+
+.balance-note {
+  display: block;
+  margin-top: 4px;
+  color: #b45309;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
 .report-stat-row {
   display: flex;
   align-items: center;
@@ -82,5 +102,9 @@
 @media (max-width: 360px) {
   .salary-summary {
     grid-template-columns: 1fr;
+  }
+
+  .salary-summary-card {
+    padding: 12px;
   }
 }
