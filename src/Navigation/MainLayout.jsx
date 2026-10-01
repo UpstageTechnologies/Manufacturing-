@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { FaRupeeSign } from 'react-icons/fa';
 import { FiCreditCard, FiMenu, FiPackage, FiTrendingUp, FiUsers, FiX } from 'react-icons/fi';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import '../Features/Dashboard/Dashboard.css';
 
 function MainLayout({ children }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const links = [
     { path: '/dashboard', label: 'Dashboard', icon: FiTrendingUp },
@@ -17,7 +18,7 @@ function MainLayout({ children }) {
   ];
 
   return (
-    <div className="page-shell dashboard-page">
+    <div className={`page-shell dashboard-page${location.pathname === '/inventory' ? ' inventory-shell' : ''}`}>
       <div className="mobile-nav-header">
         <button type="button" className="sidebar-brand mobile-brand-button" onClick={() => { setIsMenuOpen(false); navigate('/dashboard'); }}>
           <div className="brand-mark">M</div>
