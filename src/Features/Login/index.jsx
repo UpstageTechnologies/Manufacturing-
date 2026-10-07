@@ -1,14 +1,23 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FiMail, FiLock, FiArrowRight } from 'react-icons/fi';
+import { DEFAULT_CEO_CREDENTIALS, loginUser } from '../../State/auth';
 import './Login.css';
 
 function LoginPage() {
   const navigate = useNavigate();
+  const [error, setError] = useState('');
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    localStorage.setItem('manufacture-erp-authenticated', 'true');
-    navigate('/dashboard');
+    const formData = new FormData(event.currentTarget);
+    const email = formData.get('email');
+    const password = formData.get('password');
+    if (!loginUser(email, password)) {
+      setError('Email or password is incorrect.');
+      return;
+    }
+    navigate('/dashboard', { replace: true });
   };
 
   return (
@@ -32,7 +41,7 @@ function LoginPage() {
             <label htmlFor="email">Email</label>
             <div className="input-wrap">
               <FiMail />
-              <input id="email" type="email" placeholder="name@company.com" />
+              <input id="email" name="email" type="email" placeholder="name@company.com" autoComplete="username" required />
             </div>
           </div>
 
@@ -43,18 +52,18 @@ function LoginPage() {
             </div>
             <div className="input-wrap">
               <FiLock />
-              <input id="password" type="password" placeholder="Enter password" />
+              <input id="password" name="password" type="password" placeholder="Enter password" autoComplete="current-password" required />
             </div>
           </div>
 
+          {error && <p role="alert" className="auth-error">{error}</p>}
           <button type="submit" className="primary-button full-width">
             Login <FiArrowRight />
           </button>
         </form>
 
         <div className="auth-footer">
-          <span>Don’t have an account?</span>
-          <Link to="/register">Create one</Link>
+          <span>Initial CEO login: {DEFAULT_CEO_CREDENTIALS.email} / {DEFAULT_CEO_CREDENTIALS.password}</span>
         </div>
       </div>
     </div>

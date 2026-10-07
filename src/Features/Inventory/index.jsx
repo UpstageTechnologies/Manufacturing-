@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { FaRupeeSign } from 'react-icons/fa';
 import {
   FiActivity,
   FiArrowDownRight,
@@ -12,7 +13,6 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiClock,
-  FiDollarSign,
   FiDroplet,
   FiEdit2,
   FiFileText,
@@ -30,6 +30,7 @@ import {
   FiX,
 } from 'react-icons/fi';
 import { formatDate, useERP } from '../../State/ERPContext';
+import { getCurrentUser, ROLES } from '../../State/auth';
 import './Inventory.css';
 
 const STORAGE_KEY = 'manufacture-erp-inventory-workflow';
@@ -517,7 +518,7 @@ function StageDetail({ purchase, stage, employees, attendance, close, edit, addW
         <div className="inv-detail-actions">
           <button type="button" className="inv-button is-light" onClick={addWorker}><FiUsers /> Add worker</button>
           <button type="button" className="inv-button is-light" onClick={edit}><FiEdit2 /> Edit stage</button>
-          <button type="button" className="inv-button is-light" onClick={edit}><FiDollarSign /> Add cost</button>
+          <button type="button" className="inv-button is-light" onClick={edit}><FaRupeeSign /> Add cost</button>
           <button type="button" className="inv-button is-light" onClick={edit}><FiFileText /> Add note</button>
           <button type="button" className="inv-button is-danger-light" onClick={remove}><FiTrash2 /> Delete stage</button>
         </div>
@@ -1019,6 +1020,7 @@ function BillForm({ stock, save, close }) {
 
 function InventoryPage() {
   const { employees = [], attendance = {} } = useERP();
+  const isCEO = getCurrentUser()?.role === ROLES.CEO;
   const [workflow, setWorkflow] = useState(loadWorkflow);
   const [tab, setTab] = useState('overview');
   const [purchaseId, setPurchaseId] = useState(null);
@@ -1161,12 +1163,12 @@ function InventoryPage() {
       </header>
 
       <section className="inv-kpi-grid" aria-label="Inventory overview">
-        <article className="inv-kpi-card"><span className="inv-kpi-icon is-blue"><FiShoppingCart /></span><div><span>Total purchases</span><strong>{money(summary.purchasesValue)}</strong><small>{workflow.purchases.length} purchase lots</small></div></article>
+        {isCEO && <article className="inv-kpi-card"><span className="inv-kpi-icon is-blue"><FiShoppingCart /></span><div><span>Total purchases</span><strong>{money(summary.purchasesValue)}</strong><small>{workflow.purchases.length} purchase lots</small></div></article>}
         <article className="inv-kpi-card"><span className="inv-kpi-icon is-orange"><FiActivity /></span><div><span>Active productions</span><strong>{summary.activeCount}</strong><small>Lots currently on the line</small></div></article>
         <article className="inv-kpi-card"><span className="inv-kpi-icon is-teal"><FiScissors /></span><div><span>Processing quantity</span><strong>{summary.processing}</strong><small>At the active stage</small></div></article>
         <article className="inv-kpi-card"><span className="inv-kpi-icon is-green"><FiPackage /></span><div><span>Ready stock</span><strong>{summary.readyQuantity}</strong><small>Available to sell</small></div></article>
-        <article className="inv-kpi-card"><span className="inv-kpi-icon is-violet"><FiDollarSign /></span><div><span>Pending sales</span><strong>{money(summary.pendingSales)}</strong><small>Customer balances</small></div></article>
-        <article className="inv-kpi-card"><span className="inv-kpi-icon is-slate"><FiBarChart2 /></span><div><span>Total production cost</span><strong>{money(summary.productionCost)}</strong><small>Purchase value + stage costs</small></div></article>
+        {isCEO && <article className="inv-kpi-card"><span className="inv-kpi-icon is-violet"><FaRupeeSign /></span><div><span>Pending sales</span><strong>{money(summary.pendingSales)}</strong><small>Customer balances</small></div></article>}
+        {isCEO && <article className="inv-kpi-card"><span className="inv-kpi-icon is-slate"><FiBarChart2 /></span><div><span>Total production cost</span><strong>{money(summary.productionCost)}</strong><small>Purchase value + stage costs</small></div></article>}
       </section>
 
       <nav className="inv-tabs" aria-label="Inventory sections">

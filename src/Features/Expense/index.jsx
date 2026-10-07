@@ -1,15 +1,19 @@
 import { useState } from 'react';
 import { FiTrendingDown, FiTrash2 } from 'react-icons/fi';
 import { formatCurrency, formatDate, useERP } from '../../State/ERPContext';
+import { canAccessPath, getCurrentUser, maskSensitiveAmount, ROLES } from '../../State/auth';
 import './Expense.css';
 
 function ExpensePage() {
   const today = new Date().toISOString().split('T')[0];
   const { expense, addExpense, deleteExpense } = useERP();
+  const user = getCurrentUser();
+  const isCEO = user?.role === ROLES.CEO;
   const [form, setForm] = useState({ title: '', amount: '', date: today });
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    if (!canAccessPath(user?.role, '/expense')) return;
     if (!form.title.trim() || Number(form.amount) <= 0) return;
     addExpense({ ...form, title: form.title.trim(), amount: Number(form.amount) });
     setForm({ title: '', amount: '', date: today });
@@ -45,15 +49,17 @@ function ExpensePage() {
         </div>
       </form>
 
-      <div className="stats-row">
-        <div className="mini-stat">
-          <FiTrendingDown />
-          <div>
-            <small>Total Expense</small>
-            <strong>{formatCurrency(expense.reduce((total, item) => total + Number(item.amount), 0))}</strong>
+      {isCEO && (
+        <div className="stats-row">
+          <div className="mini-stat">
+            <FiTrendingDown />
+            <div>
+              <small>Total Expense</small>
+              <strong>{formatCurrency(expense.reduce((total, item) => total + Number(item.amount), 0))}</strong>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="content-panel">
         <div className="panel-header">
@@ -73,10 +79,10 @@ function ExpensePage() {
             {expense.map((item) => (
               <tr key={item.id}>
                 <td>{item.title}</td>
-                <td>{formatCurrency(item.amount)}</td>
+                <td>{isCEO ? formatCurrency(item.amount) : <span aria-label="Sensitive amount hidden">{maskSensitiveAmount(item.amount, user?.role)}</span>}</td>
                 <td>{formatDate(item.date)}</td>
                 <td>
-                  <button type="button" className="table-action danger" onClick={() => deleteExpense(item.id)}><FiTrash2 /> Delete</button>
+                  <button type="button" className="table-action danger" onClick={() => { if (canAccessPath(user?.role, '/expense')) deleteExpense(item.id); }}><FiTrash2 /> Delete</button>
                 </td>
               </tr>
             ))}

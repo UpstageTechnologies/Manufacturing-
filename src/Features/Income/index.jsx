@@ -1,15 +1,19 @@
 import { useState } from 'react';
 import { FiTrash2 } from 'react-icons/fi';
 import { formatCurrency, formatDate, useERP } from '../../State/ERPContext';
+import { canAccessPath, getCurrentUser, maskSensitiveAmount, ROLES } from '../../State/auth';
 import './Income.css';
 
 function IncomePage() {
   const today = new Date().toISOString().split('T')[0];
   const { income, addIncome, deleteIncome } = useERP();
+  const user = getCurrentUser();
+  const isCEO = user?.role === ROLES.CEO;
   const [form, setForm] = useState({ title: '', amount: '', date: today });
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    if (!canAccessPath(user?.role, '/income')) return;
     if (!form.title.trim() || Number(form.amount) <= 0) return;
     addIncome({ ...form, title: form.title.trim(), amount: Number(form.amount) });
     setForm({ title: '', amount: '', date: today });
@@ -45,15 +49,17 @@ function IncomePage() {
         </div>
       </form>
 
-      <div className="stats-row">
-        <div className="mini-stat">
-          <span className="currency-symbol" aria-label="Indian Rupee symbol">₹</span>
-          <div>
-            <small>Total Income</small>
-            <strong>{formatCurrency(income.reduce((total, item) => total + Number(item.amount), 0))}</strong>
+      {isCEO && (
+        <div className="stats-row">
+          <div className="mini-stat">
+            <span className="currency-symbol" aria-label="Indian Rupee symbol">₹</span>
+            <div>
+              <small>Total Income</small>
+              <strong>{formatCurrency(income.reduce((total, item) => total + Number(item.amount), 0))}</strong>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="content-panel">
         <div className="panel-header">
@@ -73,10 +79,10 @@ function IncomePage() {
             {income.map((item) => (
               <tr key={item.id}>
                 <td>{item.title}</td>
-                <td>{formatCurrency(item.amount)}</td>
+                <td>{isCEO ? formatCurrency(item.amount) : <span aria-label="Sensitive amount hidden">{maskSensitiveAmount(item.amount, user?.role)}</span>}</td>
                 <td>{formatDate(item.date)}</td>
                 <td>
-                  <button type="button" className="table-action danger" onClick={() => deleteIncome(item.id)}><FiTrash2 /> Delete</button>
+                  <button type="button" className="table-action danger" onClick={() => { if (canAccessPath(user?.role, '/income')) deleteIncome(item.id); }}><FiTrash2 /> Delete</button>
                 </td>
               </tr>
             ))}

@@ -1,5 +1,16 @@
 # React + Vite
 
+## Demo access and roles
+
+The application starts with a CEO account:
+
+- Email: `ceo@manufacture.local`
+- Password: `CEO@123`
+
+Sign in as CEO and use **Account Management** to create Manager and Accountant accounts. Public registration is disabled. Manager access is limited to the dashboard, inventory, attendance, and salary; Accountant access includes detailed accounting pages, with sensitive income and expense amounts masked. Company-wide financial summaries are shown only to the CEO.
+
+This project currently stores accounts, credentials, and ERP data in browser local storage. It is suitable for a local demo, not production authentication; production use requires server-side authentication, authorization, and protected credential storage.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

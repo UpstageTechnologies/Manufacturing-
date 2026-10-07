@@ -1,22 +1,12 @@
-import { useState } from 'react';
-import { FiChevronDown, FiCreditCard, FiMenu, FiPackage, FiTrendingUp, FiUsers, FiX } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom';
-import { formatCurrency, formatDate, useERP } from '../../State/ERPContext';
-import './Dashboard.css';
 import { FaRupeeSign } from 'react-icons/fa';
+import { FiCreditCard, FiPackage, FiTrendingUp, FiUsers } from 'react-icons/fi';
+import { useERP, formatCurrency, formatDate } from '../../State/ERPContext';
+import { getCurrentUser, ROLES } from '../../State/auth';
+import './Dashboard.css';
 
 function DashboardPage() {
-  const navigate = useNavigate();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { income, expense, employees, salary, attendance } = useERP();
-  const summaryCards = [
-    { label: 'Income', value: formatCurrency(income.reduce((total, item) => total + Number(item.amount), 0)), change: 'Live', icon: FiTrendingUp, tone: 'emerald' },
-    { label: 'Expense', value: formatCurrency(expense.reduce((total, item) => total + Number(item.amount), 0)), change: 'Live', icon: FiCreditCard, tone: 'red' },
-    { label: 'Salary', value: formatCurrency(salary.reduce((total, item) => total + Number(item.amount), 0)), change: 'Live', icon: FaRupeeSign, tone: 'blue' },
-    { label: 'Employees', value: employees.length, change: 'Live', icon: FiUsers, tone: 'purple' },
-  ];
-  const incomeRows = income.slice(0, 3).map((item) => ({ name: item.title, amount: formatCurrency(item.amount), date: formatDate(item.date) }));
-  const expenseRows = expense.slice(0, 3).map((item) => ({ name: item.title, amount: formatCurrency(item.amount), date: formatDate(item.date) }));
+  const user = getCurrentUser();
+  const { income, expense, employees, salary, attendance, inventory } = useERP();
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const todayAttendance = attendance?.[todayKey] || {};
@@ -24,6 +14,29 @@ function DashboardPage() {
     const status = todayAttendance[employee.id];
     return status in counts ? { ...counts, [status]: counts[status] + 1 } : counts;
   }, { Present: 0, Late: 0, Absent: 0 });
+  const pendingSalaryCount = salary.filter((record) => record.status !== 'Paid').length;
+  const isCEO = user?.role === ROLES.CEO;
+  const isManager = user?.role === ROLES.MANAGER;
+
+  const ceoCards = [
+    { label: 'Income', value: formatCurrency(income.reduce((total, item) => total + Number(item.amount), 0)), icon: FiTrendingUp, tone: 'emerald' },
+    { label: 'Expense', value: formatCurrency(expense.reduce((total, item) => total + Number(item.amount), 0)), icon: FiCreditCard, tone: 'red' },
+    { label: 'Salary', value: formatCurrency(salary.reduce((total, item) => total + Number(item.amount), 0)), icon: FaRupeeSign, tone: 'blue' },
+    { label: 'Employees', value: employees.length, icon: FiUsers, tone: 'purple' },
+  ];
+  const managerCards = [
+    { label: 'Inventory items', value: inventory.length, icon: FiPackage, tone: 'emerald' },
+    { label: 'Present today', value: attendanceCounts.Present, icon: FiUsers, tone: 'blue' },
+    { label: 'Absent today', value: attendanceCounts.Absent, icon: FiUsers, tone: 'red' },
+    { label: 'Pending salary payments', value: pendingSalaryCount, icon: FiCreditCard, tone: 'purple' },
+  ];
+  const accountantCards = [
+    { label: 'Income records', value: income.length, icon: FiTrendingUp, tone: 'emerald' },
+    { label: 'Expense records', value: expense.length, icon: FiCreditCard, tone: 'red' },
+    { label: 'Pending salary payments', value: pendingSalaryCount, icon: FaRupeeSign, tone: 'blue' },
+    { label: 'Employees', value: employees.length, icon: FiUsers, tone: 'purple' },
+  ];
+  const summaryCards = isCEO ? ceoCards : isManager ? managerCards : accountantCards;
   const formattedDate = today.toLocaleDateString('en-IN', {
     weekday: 'long',
     day: 'numeric',
@@ -32,188 +45,88 @@ function DashboardPage() {
   });
 
   return (
-    <div className="page-shell dashboard-page">
-      <div className="mobile-nav-header">
-        <button type="button" className="sidebar-brand mobile-brand-button" onClick={() => { setIsMenuOpen(false); navigate('/dashboard'); }}>
-          <div className="brand-mark">M</div>
-          <div>
-            <strong>Manufacture</strong>
-            <small>ERP</small>
-          </div>
-        </button>
-        <button type="button" className="mobile-menu-button" aria-expanded={isMenuOpen} aria-controls="dashboard-navigation" aria-label={isMenuOpen ? 'Close menu' : 'Open menu'} onClick={() => setIsMenuOpen((open) => !open)}>
-          {isMenuOpen ? <FiX /> : <FiMenu />}
-        </button>
-      </div>
-      <aside className={`sidebar${isMenuOpen ? ' menu-open' : ''}`}>
-        <button type="button" className="sidebar-brand" onClick={() => { setIsMenuOpen(false); navigate('/dashboard'); }}>
-          <div className="brand-mark">M</div>
-          <div>
-            <strong>Manufacture</strong>
-            <small>ERP</small>
-          </div>
-        </button>
-
-        <nav id="dashboard-navigation" className="sidebar-nav">
-          <button type="button" className="nav-item active" onClick={() => { setIsMenuOpen(false); navigate('/dashboard'); }}>
-            <FiTrendingUp />
-            <span>Dashboard</span>
-          </button>
-          <button type="button" className="nav-item" onClick={() => { setIsMenuOpen(false); navigate('/income'); }}>
-            <FaRupeeSign />
-            <span>Income</span>
-          </button>
-          <button type="button" className="nav-item" onClick={() => { setIsMenuOpen(false); navigate('/expense'); }}>
-            <FiCreditCard />
-            <span>Expense</span>
-          </button>
-          <button type="button" className="nav-item" onClick={() => { setIsMenuOpen(false); navigate('/inventory'); }}>
-            <FiPackage />
-            <span>Inventory</span>
-          </button>
-          <button type="button" className="nav-item" onClick={() => { setIsMenuOpen(false); navigate('/salary'); }}>
-            <FiUsers />
-            <span>Salary</span>
-          </button>
-          <button type="button" className="nav-item" onClick={() => { setIsMenuOpen(false); navigate('/attendance'); }}>
-            <FiUsers />
-            <span>Attendance</span>
-          </button>
-        </nav>
-
-        <div className="sidebar-footer">
-          <button type="button" className="sidebar-link">Settings</button>
-          <button type="button" className="sidebar-link logout" onClick={() => { localStorage.removeItem('manufacture-erp-authenticated'); navigate('/login'); }}>Logout</button>
+    <>
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">{user?.role} workspace</p>
+          <h1 className="page-title">Business Dashboard</h1>
         </div>
-      </aside>
-
-      <div className="content-area">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Operations</p>
-            <h1 className="page-title">Business Dashboard</h1>
-          </div>
-
-          <div className="topbar-actions">
-            <div className="profile-pill">
-              <div className="mini-avatar">AK</div>
-              <div>
-                <strong>Alisha Khan</strong>
-                <small>Admin</small>
-              </div>
-              <FiChevronDown />
-            </div>
-          </div>
-        </header>
-
-        <main className="dashboard-main">
-          <section className="welcome-panel">
+        <div className="topbar-actions">
+          <div className="profile-pill">
+            <div className="mini-avatar">{(user?.name || user?.role || 'U').slice(0, 2).toUpperCase()}</div>
             <div>
-              <p className="eyebrow muted">Welcome back</p>
-              <h2>Good morning, Alisha</h2>
-              <p className="subtitle">{formattedDate}</p>
+              <strong>{user?.name}</strong>
+              <small>{user?.role}</small>
             </div>
-            <button type="button" className="primary-button">Generate report</button>
-          </section>
+          </div>
+        </div>
+      </header>
 
-          <section className="summary-grid">
-            {summaryCards.map(({ label, value, change, icon: Icon, tone }) => (
-              <div key={label} className={`summary-card ${tone}`}>
-                <div className="summary-header">
-                  <div className="summary-icon">
-                    <Icon />
-                  </div>
-                  <span className="trend">{change}</span>
-                </div>
-                <p className="summary-label">{label}</p>
-                <h3>{value}</h3>
-              </div>
-            ))}
-          </section>
+      <section className="welcome-panel">
+        <div>
+          <p className="eyebrow muted">Welcome back</p>
+          <h2>Hello, {user?.name?.split(' ')[0]}</h2>
+          <p className="subtitle">{formattedDate}</p>
+        </div>
+      </section>
 
-          <section className="data-grid">
-            <div className="panel-card">
-              <div className="panel-header">
-                <h3>Recent Income</h3>
-                <button type="button" className="text-button" onClick={() => navigate('/income')}>View all</button>
-              </div>
-
-              <table>
-                <thead>
-                  <tr>
-                    <th>Source</th>
-                    <th>Amount</th>
-                    <th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {incomeRows.map((row) => (
-                    <tr key={row.name}>
-                      <td>{row.name}</td>
-                      <td>{row.amount}</td>
-                      <td>{row.date}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <section className="summary-grid">
+        {summaryCards.map(({ label, value, icon: Icon, tone }) => (
+          <div key={label} className={`summary-card ${tone}`}>
+            <div className="summary-header">
+              <div className="summary-icon"><Icon /></div>
+              <span className="trend">Live</span>
             </div>
+            <p className="summary-label">{label}</p>
+            <h3>{value}</h3>
+          </div>
+        ))}
+      </section>
 
-            <div className="panel-card">
-              <div className="panel-header">
-                <h3>Recent Expense</h3>
-                <button type="button" className="text-button" onClick={() => navigate('/expense')}>View all</button>
-              </div>
+      {isCEO && (
+        <section className="data-grid">
+          <div className="panel-card">
+            <div className="panel-header"><h3>Recent Income</h3></div>
+            <table>
+              <thead><tr><th>Source</th><th>Amount</th><th>Date</th></tr></thead>
+              <tbody>
+                {income.slice(0, 3).map((item) => (
+                  <tr key={item.id}><td>{item.title}</td><td>{formatCurrency(item.amount)}</td><td>{formatDate(item.date)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="panel-card">
+            <div className="panel-header"><h3>Recent Expense</h3></div>
+            <table>
+              <thead><tr><th>Source</th><th>Amount</th><th>Date</th></tr></thead>
+              <tbody>
+                {expense.slice(0, 3).map((item) => (
+                  <tr key={item.id}><td>{item.title}</td><td>{formatCurrency(item.amount)}</td><td>{formatDate(item.date)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
-              <table>
-                <thead>
-                  <tr>
-                    <th>Source</th>
-                    <th>Amount</th>
-                    <th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenseRows.map((row) => (
-                    <tr key={row.name}>
-                      <td>{row.name}</td>
-                      <td>{row.amount}</td>
-                      <td>{row.date}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {!isCEO && (
+        <section className="attendance-section">
+          <div className="panel-card attendance-card">
+            <div className="panel-header">
+              <h3>{isManager ? 'Today’s attendance' : 'Workforce overview'}</h3>
+              <span className="tag present">Present {employees.length ? Math.round((attendanceCounts.Present / employees.length) * 100) : 0}%</span>
             </div>
-          </section>
-
-          <section className="attendance-section">
-            <div className="panel-card attendance-card">
-              <div className="panel-header">
-                <h3>Attendance Summary</h3>
-                <span className="tag present">Present {employees.length ? Math.round((attendanceCounts.Present / employees.length) * 100) : 0}%</span>
-              </div>
-              <div className="attendance-metrics">
-                <div>
-                  <strong>{employees.length}</strong>
-                  <span>Total</span>
-                </div>
-                <div>
-                  <strong>{attendanceCounts.Present}</strong>
-                  <span>Present</span>
-                </div>
-                <div>
-                  <strong>{attendanceCounts.Late}</strong>
-                  <span>Late</span>
-                </div>
-                <div>
-                  <strong>{attendanceCounts.Absent}</strong>
-                  <span>Absent</span>
-                </div>
-              </div>
+            <div className="attendance-metrics">
+              <div><strong>{employees.length}</strong><span>Employees</span></div>
+              <div><strong>{attendanceCounts.Present}</strong><span>Present</span></div>
+              <div><strong>{attendanceCounts.Late}</strong><span>Late</span></div>
+              <div><strong>{attendanceCounts.Absent}</strong><span>Absent</span></div>
             </div>
-          </section>
-        </main>
-      </div>
-    </div>
+          </div>
+        </section>
+      )}
+    </>
   );
 }
 
