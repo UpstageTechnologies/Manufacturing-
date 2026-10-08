@@ -65,7 +65,7 @@ function DashboardPage() {
       <section className="welcome-panel">
         <div>
           <p className="eyebrow muted">Welcome back</p>
-          <h2>Hello, {user?.name?.split(' ')[0]}</h2>
+          <h2>Hello, {user?.role === ROLES.CEO ? 'Admin' : user?.role || 'Admin'}</h2>
           <p className="subtitle">{formattedDate}</p>
         </div>
       </section>

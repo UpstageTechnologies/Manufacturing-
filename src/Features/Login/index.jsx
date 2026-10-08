@@ -1,18 +1,34 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiMail, FiLock, FiArrowRight } from 'react-icons/fi';
-import { DEFAULT_CEO_CREDENTIALS, loginUser } from '../../State/auth';
+import { FiMail, FiLock, FiArrowRight, FiEye, FiEyeOff } from 'react-icons/fi';
+import { loginUser } from '../../State/auth';
 import './Login.css';
 
 function LoginPage() {
   const navigate = useNavigate();
   const [error, setError] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   const handleSubmit = (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const email = formData.get('email');
-    const password = formData.get('password');
+    const email = String(formData.get('email') || '');
+    const password = String(formData.get('password') || '');
+    if (!email.trim()) {
+      setError('Email is required.');
+      return;
+    }
+    if (!password) {
+      setError('Password is required.');
+      return;
+    }
+
+    const emailField = event.currentTarget.elements.namedItem('email');
+    if (!emailField.validity.valid) {
+      setError('Enter a valid email address.');
+      return;
+    }
+
     if (!loginUser(email, password)) {
       setError('Email or password is incorrect.');
       return;
@@ -36,7 +52,7 @@ function LoginPage() {
           <p>Sign in to continue with your operations.</p>
         </div>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form className="auth-form" noValidate onSubmit={handleSubmit} onChange={() => setError('')}>
           <div className="field-group">
             <label htmlFor="email">Email</label>
             <div className="input-wrap">
@@ -52,7 +68,16 @@ function LoginPage() {
             </div>
             <div className="input-wrap">
               <FiLock />
-              <input id="password" name="password" type="password" placeholder="Enter password" autoComplete="current-password" required />
+              <input id="password" name="password" type={isPasswordVisible ? 'text' : 'password'} placeholder="Enter password" autoComplete="current-password" required />
+              <button
+                type="button"
+                className="password-toggle"
+                aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
+                aria-pressed={isPasswordVisible}
+                onClick={() => setIsPasswordVisible((visible) => !visible)}
+              >
+                {isPasswordVisible ? <FiEyeOff /> : <FiEye />}
+              </button>
             </div>
           </div>
 
@@ -61,10 +86,6 @@ function LoginPage() {
             Login <FiArrowRight />
           </button>
         </form>
-
-        <div className="auth-footer">
-          <span>Initial CEO login: {DEFAULT_CEO_CREDENTIALS.email} / {DEFAULT_CEO_CREDENTIALS.password}</span>
-        </div>
       </div>
     </div>
   );
