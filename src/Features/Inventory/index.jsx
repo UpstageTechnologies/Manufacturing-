@@ -30,7 +30,7 @@ import {
   FiX,
 } from 'react-icons/fi';
 import { formatDate, useERP } from '../../State/ERPContext';
-import { getCurrentUser, ROLES } from '../../State/auth';
+import { getCurrentUser, recordOwnerActivity, ROLES } from '../../State/auth';
 import './Inventory.css';
 
 const STORAGE_KEY = 'manufacture-erp-inventory-workflow';
@@ -1062,10 +1062,13 @@ function InventoryPage() {
     };
   }, [workflow.purchases, workflow.sales, workflow.bills, stock]);
 
-  const updatePurchase = (updated) => setWorkflow((current) => ({
-    ...current,
-    purchases: current.purchases.map((purchase) => purchase.id === updated.id ? updated : purchase),
-  }));
+  const updatePurchase = (updated) => {
+    setWorkflow((current) => ({
+      ...current,
+      purchases: current.purchases.map((purchase) => purchase.id === updated.id ? updated : purchase),
+    }));
+    recordOwnerActivity('Updated inventory purchase', 'Inventory', updated.id);
+  };
   const createPurchase = (values) => {
     const numberIndex = workflow.purchases.length + 1;
     const purchase = {
@@ -1076,6 +1079,7 @@ function InventoryPage() {
       transfers: [],
     };
     setWorkflow((current) => ({ ...current, purchases: [purchase, ...current.purchases] }));
+    recordOwnerActivity('Added inventory purchase', 'Inventory', purchase.id);
     setPurchaseId(purchase.id);
     setTab('production');
     setPurchaseOpen(false);
@@ -1093,6 +1097,7 @@ function InventoryPage() {
       purchases: consumeStock(current.purchases, sale.stockKey, sale.quantity),
       sales: [sale, ...current.sales],
     }));
+    recordOwnerActivity('Recorded inventory sale', 'Inventory', sale.id);
     setSaleOpen(false);
     setTab('sales');
     setNotice('Sale recorded and ready stock updated.');
@@ -1124,19 +1129,23 @@ function InventoryPage() {
         sales: [...sales, ...current.sales],
       };
     });
+    recordOwnerActivity('Generated inventory bill', 'Inventory', bill.invoiceNumber || 'New bill');
     setBillOpen(false);
     setTab('billing');
     setNotice('Bill generated and inventory quantities updated.');
   };
-  const toggleReady = (purchaseIdValue, transferId) => setWorkflow((current) => ({
-    ...current,
-    purchases: current.purchases.map((purchase) => purchase.id !== purchaseIdValue ? purchase : {
-      ...purchase,
-      transfers: purchase.transfers.map((transfer) => transfer.id === transferId
-        ? { ...transfer, ready: !transfer.ready, readyDate: !transfer.ready ? today() : '' }
-        : transfer),
-    }),
-  }));
+  const toggleReady = (purchaseIdValue, transferId) => {
+    setWorkflow((current) => ({
+      ...current,
+      purchases: current.purchases.map((purchase) => purchase.id !== purchaseIdValue ? purchase : {
+        ...purchase,
+        transfers: purchase.transfers.map((transfer) => transfer.id === transferId
+          ? { ...transfer, ready: !transfer.ready, readyDate: !transfer.ready ? today() : '' }
+          : transfer),
+      }),
+    }));
+    recordOwnerActivity('Updated inventory readiness', 'Inventory', `${purchaseIdValue}:${transferId}`);
+  };
 
   if (selectedPurchase) {
     return (

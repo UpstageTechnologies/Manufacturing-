@@ -196,6 +196,21 @@ input {
   width: 100%;
 }
 
+.auth-error,
+.auth-success {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.auth-error {
+  color: #b42318;
+}
+
+.auth-success {
+  color: #067647;
+}
+
 .auth-footer {
   display: flex;
   align-items: center;

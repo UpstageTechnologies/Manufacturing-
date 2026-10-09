@@ -18,7 +18,7 @@ function MainLayout({ children }) {
     { path: '/inventory', label: 'Inventory', icon: FiPackage },
     { path: '/salary', label: 'Salary', icon: LuWalletCards },
     { path: '/attendance', label: 'Attendance', icon: FiUsers },
-    { path: '/account-management', label: 'Account Management', icon: FiUserPlus },
+    { path: '/account-management', label: 'Owner Management', icon: FiUserPlus },
   ].filter(({ path }) => canAccessPath(user?.role, path));
 
   return (

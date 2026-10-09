@@ -16,7 +16,7 @@ function DashboardPage() {
   }, { Present: 0, Late: 0, Absent: 0 });
   const pendingSalaryCount = salary.filter((record) => record.status !== 'Paid').length;
   const isCEO = user?.role === ROLES.CEO;
-  const isManager = user?.role === ROLES.MANAGER;
+  const isManager = [ROLES.MANAGER, ROLES.USER].includes(user?.role);
 
   const ceoCards = [
     { label: 'Income', value: formatCurrency(income.reduce((total, item) => total + Number(item.amount), 0)), icon: FiTrendingUp, tone: 'emerald' },
@@ -65,7 +65,7 @@ function DashboardPage() {
       <section className="welcome-panel">
         <div>
           <p className="eyebrow muted">Welcome back</p>
-          <h2>Hello, {user?.role === ROLES.CEO ? 'Admin' : user?.role || 'Admin'}</h2>
+          <h2>Hello, {user?.name?.trim() || 'there'}!</h2>
           <p className="subtitle">{formattedDate}</p>
         </div>
       </section>

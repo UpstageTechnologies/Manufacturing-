@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createManagedUser, getCurrentUser, getUsers, ROLES } from '../../State/auth';
+import { approveUserAsOwner, createManagedUser, getCurrentUser, getOwnerActivity, getUsers, ROLES } from '../../State/auth';
 
 const emptyForm = {
   name: '',
@@ -13,13 +13,14 @@ const emptyForm = {
 function AccountManagementPage() {
   const [form, setForm] = useState(emptyForm);
   const [accounts, setAccounts] = useState(getUsers);
+  const [activity, setActivity] = useState(getOwnerActivity);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = (event) => {
     event.preventDefault();
     if (getCurrentUser()?.role !== ROLES.CEO) {
-      setError('Only the CEO can create accounts.');
+      setError('Only an Owner can create accounts.');
       setMessage('');
       return;
     }
@@ -27,6 +28,7 @@ function AccountManagementPage() {
     try {
       createManagedUser(form);
       setAccounts(getUsers());
+      setActivity(getOwnerActivity());
       setForm(emptyForm);
       setError('');
       setMessage('Account created. The user can now sign in with their email and password.');
@@ -36,12 +38,29 @@ function AccountManagementPage() {
     }
   };
 
+  const handleApproval = (account) => {
+    try {
+      approveUserAsOwner(account.id);
+      setAccounts(getUsers());
+      setActivity(getOwnerActivity());
+      setError('');
+      setMessage(`${account.name} is now an Owner.`);
+    } catch (approvalError) {
+      setError(approvalError.message);
+      setMessage('');
+    }
+  };
+
+  const formatLastLogin = (timestamp) => timestamp
+    ? new Date(timestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+    : 'Never';
+
   return (
     <div className="feature-page">
       <div className="feature-header">
         <div>
           <p className="eyebrow">Company access</p>
-          <h1 className="page-title">Account Management</h1>
+          <h1 className="page-title">Owner Management</h1>
         </div>
       </div>
 
@@ -53,6 +72,8 @@ function AccountManagementPage() {
           <div className="field-group">
             <label htmlFor="account-role">Role</label>
             <select id="account-role" value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
+              <option value={ROLES.OWNER}>Owner</option>
+              <option value={ROLES.USER}>User</option>
               <option value={ROLES.MANAGER}>Manager</option>
               <option value={ROLES.ACCOUNTANT}>Accountant</option>
             </select>
@@ -91,7 +112,7 @@ function AccountManagementPage() {
         </div>
         <table className="erp-table">
           <thead>
-            <tr><th>Name</th><th>Email</th><th>Mobile</th><th>Address</th><th>Role</th></tr>
+            <tr><th>Name</th><th>Email</th><th>Mobile</th><th>Address</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr>
           </thead>
           <tbody>
             {accounts.map((account) => (
@@ -101,8 +122,26 @@ function AccountManagementPage() {
                 <td>{account.mobile || '—'}</td>
                 <td>{account.address || '—'}</td>
                 <td>{account.role}</td>
+                <td>{account.status || 'Active'}</td>
+                <td>{formatLastLogin(account.lastLogin)}</td>
+                <td>{account.role === ROLES.USER && <button type="button" className="secondary-button" onClick={() => handleApproval(account)}>Approve as Owner</button>}</td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="content-panel">
+        <div className="panel-header"><h3>Owner Activity</h3></div>
+        <table className="erp-table">
+          <thead><tr><th>Performed By</th><th>Action</th><th>Module</th><th>Record</th><th>Date &amp; Time</th></tr></thead>
+          <tbody>
+            {activity.length ? activity.map((entry) => (
+              <tr key={entry.id}>
+                <td>{entry.name}</td><td>{entry.action}</td><td>{entry.module}</td><td>{entry.recordId || '—'}</td>
+                <td>{formatLastLogin(entry.timestamp)}</td>
+              </tr>
+            )) : <tr><td colSpan="5">No Owner activity recorded yet.</td></tr>}
           </tbody>
         </table>
       </div>

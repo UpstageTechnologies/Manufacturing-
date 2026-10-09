@@ -1,5 +1,7 @@
 export const ROLES = Object.freeze({
-  CEO: 'CEO',
+  OWNER: 'Owner',
+  CEO: 'Owner',
+  USER: 'User',
   MANAGER: 'Manager',
   ACCOUNTANT: 'Accountant',
 });
@@ -11,6 +13,7 @@ export const DEFAULT_CEO_CREDENTIALS = Object.freeze({
 
 const USERS_KEY = 'manufacture-erp-users';
 const SESSION_KEY = 'manufacture-erp-session';
+const ACTIVITY_KEY = 'manufacture-erp-owner-activity';
 const allowedRoles = new Set(Object.values(ROLES));
 const defaultCEO = {
   id: 'default-ceo',
@@ -19,6 +22,8 @@ const defaultCEO = {
   mobile: '',
   address: '',
   role: ROLES.CEO,
+  status: 'Active',
+  lastLogin: null,
 };
 
 function readUsers() {
@@ -31,7 +36,9 @@ function readUsers() {
   try {
     const users = JSON.parse(storedUsers);
     if (!Array.isArray(users)) throw new Error('Stored user list is invalid.');
-    const validUsers = users.filter((user) => allowedRoles.has(user.role) && user.email && user.password);
+    const validUsers = users
+      .map((user) => ({ ...user, role: user.role === 'CEO' ? ROLES.OWNER : user.role, status: user.status || 'Active', lastLogin: user.lastLogin || null }))
+      .filter((user) => allowedRoles.has(user.role) && user.email && user.password);
     if (!validUsers.some((user) => user.role === ROLES.CEO)) validUsers.unshift(defaultCEO);
     return validUsers;
   } catch (error) {
@@ -59,11 +66,41 @@ export function getUsers() {
   return readUsers().map(publicUser);
 }
 
+export function getOwnerActivity() {
+  if (getCurrentUser()?.role !== ROLES.OWNER) return [];
+  try {
+    const entries = JSON.parse(localStorage.getItem(ACTIVITY_KEY) || '[]');
+    return Array.isArray(entries) ? entries : [];
+  } catch {
+    return [];
+  }
+}
+
+export function recordOwnerActivity(action, module, recordId = '') {
+  const actor = getCurrentUser();
+  if (actor?.role !== ROLES.OWNER) return;
+  const entries = getOwnerActivity();
+  entries.unshift({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: actor.id,
+    name: actor.name || 'Unknown user',
+    action,
+    module,
+    recordId: String(recordId || ''),
+    timestamp: new Date().toISOString(),
+  });
+  localStorage.setItem(ACTIVITY_KEY, JSON.stringify(entries.slice(0, 250)));
+}
+
 export function loginUser(email, password) {
-  const user = readUsers().find((account) =>
+  const users = readUsers();
+  const userIndex = users.findIndex((account) =>
     account.email.toLowerCase() === email.trim().toLowerCase() && account.password === password,
   );
-  if (!user) return false;
+  if (userIndex < 0 || users[userIndex].status !== 'Active') return false;
+  const user = { ...users[userIndex], lastLogin: new Date().toISOString() };
+  users[userIndex] = user;
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
   localStorage.setItem(SESSION_KEY, user.email);
   return true;
 }
@@ -72,10 +109,47 @@ export function logoutUser() {
   localStorage.removeItem(SESSION_KEY);
 }
 
+export function registerUser(account) {
+  const name = String(account.name || '').trim();
+  const email = String(account.email || '').trim().toLowerCase();
+  const mobile = String(account.mobile || '').trim();
+  const address = String(account.address || '').trim();
+  const password = String(account.password || '');
+
+  if (!name || !email || !password || !mobile || !address) {
+    throw new Error('Complete all required fields.');
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Enter a valid email address.');
+  }
+  if (password !== account.confirmPassword) {
+    throw new Error('Passwords do not match.');
+  }
+
+  const users = readUsers();
+  if (users.some((user) => user.email.toLowerCase() === email)) {
+    throw new Error('An account with this email already exists.');
+  }
+
+  const newUser = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    email,
+    password,
+    mobile,
+    address,
+    role: ROLES.USER,
+    status: 'Active',
+    lastLogin: null,
+  };
+  localStorage.setItem(USERS_KEY, JSON.stringify([...users, newUser]));
+  return publicUser(newUser);
+}
+
 export function createManagedUser(account) {
-  if (getCurrentUser()?.role !== ROLES.CEO) throw new Error('Only the CEO can create accounts.');
-  if (![ROLES.MANAGER, ROLES.ACCOUNTANT].includes(account.role)) {
-    throw new Error('Only Manager and Accountant accounts can be created here.');
+  if (getCurrentUser()?.role !== ROLES.OWNER) throw new Error('Only an Owner can create accounts.');
+  if (![ROLES.OWNER, ROLES.USER, ROLES.MANAGER, ROLES.ACCOUNTANT].includes(account.role)) {
+    throw new Error('Choose a supported account role.');
   }
 
   const users = readUsers();
@@ -89,16 +163,30 @@ export function createManagedUser(account) {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     email,
     name: account.name.trim(),
+    status: 'Active',
+    lastLogin: null,
   };
   localStorage.setItem(USERS_KEY, JSON.stringify([...users, newUser]));
+  recordOwnerActivity(`Created ${newUser.role} account`, 'Account Management', newUser.id);
   return publicUser(newUser);
+}
+
+export function approveUserAsOwner(userId) {
+  if (getCurrentUser()?.role !== ROLES.OWNER) throw new Error('Only an Owner can approve Owner access.');
+  const users = readUsers();
+  const user = users.find((account) => account.id === userId);
+  if (!user || user.role !== ROLES.USER) throw new Error('Only registered Users can be approved.');
+  user.role = ROLES.OWNER;
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  recordOwnerActivity('Approved User for Owner access', 'Account Management', user.id);
+  return publicUser(user);
 }
 
 const sharedPaths = ['/dashboard', '/inventory', '/attendance', '/salary'];
 
 export function canAccessPath(role, path) {
   if (!allowedRoles.has(role)) return false;
-  if (role === ROLES.CEO) return true;
+  if (role === ROLES.OWNER) return true;
   if (sharedPaths.includes(path)) return true;
   if (role === ROLES.ACCOUNTANT && ['/income', '/expense'].includes(path)) return true;
   if (role === ROLES.CEO && path === '/account-management') return true;

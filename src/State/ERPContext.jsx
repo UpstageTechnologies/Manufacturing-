@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { recordOwnerActivity } from './auth';
 
 const STORAGE_KEY = 'manufacture-erp-data';
 
@@ -94,19 +95,19 @@ export function ERPProvider({ children }) {
 
   const value = useMemo(() => ({
     ...data,
-    addIncome: (record) => setData((prev) => ({ ...prev, income: [{ ...record, id: Date.now() }, ...prev.income] })),
-    deleteIncome: (id) => setData((prev) => ({ ...prev, income: prev.income.filter((item) => item.id !== id) })),
-    addExpense: (record) => setData((prev) => ({ ...prev, expense: [{ ...record, id: Date.now() }, ...prev.expense] })),
-    deleteExpense: (id) => setData((prev) => ({ ...prev, expense: prev.expense.filter((item) => item.id !== id) })),
-    addInventory: (record) => setData((prev) => ({ ...prev, inventory: [{ ...record, id: Date.now() }, ...prev.inventory] })),
-    updateInventory: (id, record) => setData((prev) => ({ ...prev, inventory: prev.inventory.map((item) => item.id === id ? { ...item, ...record } : item) })),
-    deleteInventory: (id) => setData((prev) => ({ ...prev, inventory: prev.inventory.filter((item) => item.id !== id) })),
-    addManufacturingStage: (record) => setData((prev) => ({ ...prev, manufacturingStages: [...prev.manufacturingStages, { ...record, id: Date.now() }] })),
-    updateManufacturingStage: (id, record) => setData((prev) => ({ ...prev, manufacturingStages: prev.manufacturingStages.map((item) => item.id === id ? { ...item, ...record } : item) })),
-    deleteManufacturingStage: (id) => setData((prev) => ({ ...prev, manufacturingStages: prev.manufacturingStages.filter((item) => item.id !== id) })),
-    addEmployee: (record) => setData((prev) => ({ ...prev, employees: [{ ...record, id: Date.now() }, ...prev.employees] })),
-    updateEmployee: (id, record) => setData((prev) => ({ ...prev, employees: prev.employees.map((item) => item.id === id ? { ...item, ...record } : item) })),
-    deleteEmployee: (id) => setData((prev) => ({ ...prev, employees: prev.employees.filter((item) => item.id !== id) })),
+    addIncome: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, income: [{ ...record, id }, ...prev.income] })); recordOwnerActivity('Added income record', 'Income', id); },
+    deleteIncome: (id) => { setData((prev) => ({ ...prev, income: prev.income.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted income record', 'Income', id); },
+    addExpense: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, expense: [{ ...record, id }, ...prev.expense] })); recordOwnerActivity('Added expense record', 'Expense', id); },
+    deleteExpense: (id) => { setData((prev) => ({ ...prev, expense: prev.expense.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted expense record', 'Expense', id); },
+    addInventory: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, inventory: [{ ...record, id }, ...prev.inventory] })); recordOwnerActivity('Added inventory item', 'Inventory', id); },
+    updateInventory: (id, record) => { setData((prev) => ({ ...prev, inventory: prev.inventory.map((item) => item.id === id ? { ...item, ...record } : item) })); recordOwnerActivity('Updated inventory item', 'Inventory', id); },
+    deleteInventory: (id) => { setData((prev) => ({ ...prev, inventory: prev.inventory.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted inventory item', 'Inventory', id); },
+    addManufacturingStage: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, manufacturingStages: [...prev.manufacturingStages, { ...record, id }] })); recordOwnerActivity('Added manufacturing stage', 'Inventory', id); },
+    updateManufacturingStage: (id, record) => { setData((prev) => ({ ...prev, manufacturingStages: prev.manufacturingStages.map((item) => item.id === id ? { ...item, ...record } : item) })); recordOwnerActivity('Updated manufacturing stage', 'Inventory', id); },
+    deleteManufacturingStage: (id) => { setData((prev) => ({ ...prev, manufacturingStages: prev.manufacturingStages.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted manufacturing stage', 'Inventory', id); },
+    addEmployee: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, employees: [{ ...record, id }, ...prev.employees] })); recordOwnerActivity('Added employee', 'Attendance', id); },
+    updateEmployee: (id, record) => { setData((prev) => ({ ...prev, employees: prev.employees.map((item) => item.id === id ? { ...item, ...record } : item) })); recordOwnerActivity('Updated employee', 'Attendance', id); },
+    deleteEmployee: (id) => { setData((prev) => ({ ...prev, employees: prev.employees.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted employee', 'Attendance', id); },
     saveAttendance: (date, records) => {
       if (date !== getLocalDateString()) return;
       setData((prev) => ({
@@ -116,9 +117,10 @@ export function ERPProvider({ children }) {
           [date]: { ...(prev.attendance?.[date] || {}), ...records },
         },
       }));
+      recordOwnerActivity('Updated attendance', 'Attendance', date);
     },
-    addLedgerEntry: (record) => setData((prev) => ({ ...prev, ledger: [{ ...record, id: Date.now() }, ...prev.ledger] })),
-    addSalary: (record) => setData((prev) => ({ ...prev, salary: [{ ...record, id: Date.now() }, ...prev.salary] })),
+    addLedgerEntry: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, ledger: [{ ...record, id }, ...prev.ledger] })); recordOwnerActivity('Added salary ledger entry', 'Salary', id); },
+    addSalary: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, salary: [{ ...record, id }, ...prev.salary] })); recordOwnerActivity('Updated salary information', 'Salary', id); },
   }), [data]);
 
   return <ERPContext.Provider value={value}>{children}</ERPContext.Provider>;
