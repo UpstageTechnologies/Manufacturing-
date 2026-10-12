@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { FaRupeeSign } from 'react-icons/fa';
-import { FiCreditCard, FiMenu, FiPackage, FiTrendingUp, FiUsers, FiX, FiUserPlus } from 'react-icons/fi';
+import { FiBookOpen, FiMenu, FiPackage, FiTrendingUp, FiUsers, FiX, FiUserPlus } from 'react-icons/fi';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import '../Features/Dashboard/Dashboard.css';
-import { LuWalletCards } from 'react-icons/lu';
 import { canAccessPath, getCurrentUser, logoutUser } from '../State/auth';
 
 function MainLayout({ children }) {
@@ -13,10 +11,8 @@ function MainLayout({ children }) {
   const user = getCurrentUser();
   const links = [
     { path: '/dashboard', label: 'Dashboard', icon: FiTrendingUp },
-    { path: '/income', label: 'Income', icon: FaRupeeSign },
-    { path: '/expense', label: 'Expense', icon: FiCreditCard },
+    { path: '/journal-entry', label: 'Journal Entry', icon: FiBookOpen },
     { path: '/inventory', label: 'Inventory', icon: FiPackage },
-    { path: '/salary', label: 'Salary', icon: LuWalletCards },
     { path: '/attendance', label: 'Attendance', icon: FiUsers },
     { path: '/account-management', label: 'Owner Management', icon: FiUserPlus },
   ].filter(({ path }) => canAccessPath(user?.role, path));

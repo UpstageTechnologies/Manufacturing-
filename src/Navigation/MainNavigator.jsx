@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import DashboardPage from '../Features/Dashboard';
+import JournalEntryPage from '../Features/JournalEntry';
 import IncomePage from '../Features/Income';
 import ExpensePage from '../Features/Expense';
 import InventoryPage from '../Features/Inventory';
@@ -20,6 +21,7 @@ function MainNavigator() {
   return (
     <Routes>
       <Route path="/dashboard" element={protectedPage('/dashboard', DashboardPage)} />
+      <Route path="/journal-entry" element={protectedPage('/journal-entry', JournalEntryPage)} />
       <Route path="/income" element={protectedPage('/income', IncomePage)} />
       <Route path="/expense" element={protectedPage('/expense', ExpensePage)} />
       <Route path="/inventory" element={protectedPage('/inventory', InventoryPage)} />

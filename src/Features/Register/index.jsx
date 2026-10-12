@@ -45,6 +45,14 @@ function RegisterPage() {
           </div>
 
           <div className="field-group">
+            <label htmlFor="company-name">Company Name</label>
+            <div className="input-wrap">
+              <FiUser />
+              <input id="company-name" name="companyName" type="text" autoComplete="organization" placeholder="Company name" required />
+            </div>
+          </div>
+
+          <div className="field-group">
             <label htmlFor="reg-email">Email</label>
             <div className="input-wrap">
               <FiMail />

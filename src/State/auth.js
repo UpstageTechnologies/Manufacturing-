@@ -14,6 +14,8 @@ export const DEFAULT_CEO_CREDENTIALS = Object.freeze({
 const USERS_KEY = 'manufacture-erp-users';
 const SESSION_KEY = 'manufacture-erp-session';
 const ACTIVITY_KEY = 'manufacture-erp-owner-activity';
+export const DEFAULT_COMPANY_ID = 'manufacture-demo-company';
+export const AUTH_CHANGE_EVENT = 'manufacture-erp-auth-change';
 const allowedRoles = new Set(Object.values(ROLES));
 const defaultCEO = {
   id: 'default-ceo',
@@ -22,6 +24,8 @@ const defaultCEO = {
   mobile: '',
   address: '',
   role: ROLES.CEO,
+  companyId: DEFAULT_COMPANY_ID,
+  companyName: 'Manufacture Demo Company',
   status: 'Active',
   lastLogin: null,
 };
@@ -37,7 +41,14 @@ function readUsers() {
     const users = JSON.parse(storedUsers);
     if (!Array.isArray(users)) throw new Error('Stored user list is invalid.');
     const validUsers = users
-      .map((user) => ({ ...user, role: user.role === 'CEO' ? ROLES.OWNER : user.role, status: user.status || 'Active', lastLogin: user.lastLogin || null }))
+      .map((user) => ({
+        ...user,
+        role: user.role === 'CEO' ? ROLES.OWNER : user.role,
+        companyId: user.companyId || DEFAULT_COMPANY_ID,
+        companyName: user.companyName || 'Manufacture Demo Company',
+        status: user.status || 'Active',
+        lastLogin: user.lastLogin || null,
+      }))
       .filter((user) => allowedRoles.has(user.role) && user.email && user.password);
     if (!validUsers.some((user) => user.role === ROLES.CEO)) validUsers.unshift(defaultCEO);
     return validUsers;
@@ -63,15 +74,20 @@ export function getCurrentUser() {
 }
 
 export function getUsers() {
-  return readUsers().map(publicUser);
+  const companyId = getCurrentUser()?.companyId;
+  return readUsers()
+    .filter((account) => account.companyId === companyId)
+    .map(publicUser);
 }
 
 export function getOwnerActivity() {
-  if (getCurrentUser()?.role !== ROLES.OWNER) return [];
+  const actor = getCurrentUser();
+  if (actor?.role !== ROLES.OWNER) return [];
   try {
-    const entries = JSON.parse(localStorage.getItem(ACTIVITY_KEY) || '[]');
+    const entries = JSON.parse(localStorage.getItem(`${ACTIVITY_KEY}-${actor.companyId}`) || '[]');
     return Array.isArray(entries) ? entries : [];
-  } catch {
+  } catch (error) {
+    console.error('Unable to read company activity.', error);
     return [];
   }
 }
@@ -79,7 +95,13 @@ export function getOwnerActivity() {
 export function recordOwnerActivity(action, module, recordId = '') {
   const actor = getCurrentUser();
   if (actor?.role !== ROLES.OWNER) return;
-  const entries = getOwnerActivity();
+  let entries = [];
+  try {
+    entries = JSON.parse(localStorage.getItem(`${ACTIVITY_KEY}-${actor.companyId}`) || '[]');
+    if (!Array.isArray(entries)) throw new Error('Stored activity is invalid.');
+  } catch (error) {
+    console.error('Unable to read company activity before recording an event.', error);
+  }
   entries.unshift({
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     userId: actor.id,
@@ -89,7 +111,7 @@ export function recordOwnerActivity(action, module, recordId = '') {
     recordId: String(recordId || ''),
     timestamp: new Date().toISOString(),
   });
-  localStorage.setItem(ACTIVITY_KEY, JSON.stringify(entries.slice(0, 250)));
+  localStorage.setItem(`${ACTIVITY_KEY}-${actor.companyId}`, JSON.stringify(entries.slice(0, 250)));
 }
 
 export function loginUser(email, password) {
@@ -102,21 +124,24 @@ export function loginUser(email, password) {
   users[userIndex] = user;
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
   localStorage.setItem(SESSION_KEY, user.email);
+  window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
   return true;
 }
 
 export function logoutUser() {
   localStorage.removeItem(SESSION_KEY);
+  window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
 }
 
 export function registerUser(account) {
   const name = String(account.name || '').trim();
+  const companyName = String(account.companyName || '').trim();
   const email = String(account.email || '').trim().toLowerCase();
   const mobile = String(account.mobile || '').trim();
   const address = String(account.address || '').trim();
   const password = String(account.password || '');
 
-  if (!name || !email || !password || !mobile || !address) {
+  if (!name || !companyName || !email || !password || !mobile || !address) {
     throw new Error('Complete all required fields.');
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -131,14 +156,18 @@ export function registerUser(account) {
     throw new Error('An account with this email already exists.');
   }
 
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const companyId = `company-${id}`;
   const newUser = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id,
     name,
     email,
     password,
     mobile,
     address,
-    role: ROLES.USER,
+    companyId,
+    companyName,
+    role: ROLES.OWNER,
     status: 'Active',
     lastLogin: null,
   };
@@ -163,6 +192,8 @@ export function createManagedUser(account) {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     email,
     name: account.name.trim(),
+    companyId: getCurrentUser().companyId,
+    companyName: getCurrentUser().companyName,
     status: 'Active',
     lastLogin: null,
   };
@@ -174,7 +205,8 @@ export function createManagedUser(account) {
 export function approveUserAsOwner(userId) {
   if (getCurrentUser()?.role !== ROLES.OWNER) throw new Error('Only an Owner can approve Owner access.');
   const users = readUsers();
-  const user = users.find((account) => account.id === userId);
+  const actor = getCurrentUser();
+  const user = users.find((account) => account.id === userId && account.companyId === actor.companyId);
   if (!user || user.role !== ROLES.USER) throw new Error('Only registered Users can be approved.');
   user.role = ROLES.OWNER;
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
@@ -187,10 +219,22 @@ const sharedPaths = ['/dashboard', '/inventory', '/attendance', '/salary'];
 export function canAccessPath(role, path) {
   if (!allowedRoles.has(role)) return false;
   if (role === ROLES.OWNER) return true;
+  if (path === '/journal-entry') return true;
   if (sharedPaths.includes(path)) return true;
   if (role === ROLES.ACCOUNTANT && ['/income', '/expense'].includes(path)) return true;
   if (role === ROLES.CEO && path === '/account-management') return true;
   return false;
+}
+
+export function canAccessJournalCategory(role, category, expenseType = '') {
+  if (role === ROLES.OWNER) return true;
+  if (category === 'Income' || (category === 'Expense' && expenseType !== 'Salary')) {
+    return role === ROLES.ACCOUNTANT;
+  }
+  if (category === 'Expense' && expenseType === 'Salary') {
+    return sharedPaths.includes('/salary');
+  }
+  return category === 'Inventory' && sharedPaths.includes('/inventory');
 }
 
 export function maskSensitiveAmount(amount, role) {

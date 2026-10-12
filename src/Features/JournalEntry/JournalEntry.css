@@ -1,0 +1,42 @@
+.journal-form .field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.journal-feedback,
+.journal-success {
+  margin: 14px 0 0;
+}
+
+.journal-success {
+  color: #047857;
+  font-weight: 600;
+}
+
+.journal-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.journal-table-scroll .erp-table {
+  min-width: 700px;
+}
+
+.journal-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.journal-page .table-actions {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .journal-form .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .journal-page .content-panel {
+    padding: 16px;
+  }
+}

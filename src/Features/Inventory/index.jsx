@@ -30,10 +30,11 @@ import {
   FiX,
 } from 'react-icons/fi';
 import { formatDate, useERP } from '../../State/ERPContext';
-import { getCurrentUser, recordOwnerActivity, ROLES } from '../../State/auth';
+import { AUTH_CHANGE_EVENT, DEFAULT_COMPANY_ID, getCurrentUser, recordOwnerActivity, ROLES } from '../../State/auth';
 import './Inventory.css';
 
-const STORAGE_KEY = 'manufacture-erp-inventory-workflow';
+const LEGACY_STORAGE_KEY = 'manufacture-erp-inventory-workflow';
+const storageKey = (companyId) => `${LEGACY_STORAGE_KEY}-${companyId}`;
 const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -260,10 +261,15 @@ function normalisePurchase(purchase, index) {
   };
 }
 
-function loadWorkflow() {
+function loadWorkflow(companyId) {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return createDemoWorkflow();
+    const key = storageKey(companyId);
+    let saved = localStorage.getItem(key);
+    if (!saved && companyId === DEFAULT_COMPANY_ID) {
+      saved = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (saved) localStorage.setItem(key, saved);
+    }
+    if (!saved) return companyId === DEFAULT_COMPANY_ID ? createDemoWorkflow() : { purchases: [], sales: [], bills: [] };
     const parsed = JSON.parse(saved);
     const hasWorkflowData = Boolean(
       parsed?.purchases?.length || parsed?.sales?.length || parsed?.bills?.length,
@@ -276,7 +282,7 @@ function loadWorkflow() {
     };
   } catch (error) {
     console.error('Unable to load saved inventory workflow.', error);
-    return createDemoWorkflow();
+    return companyId === DEFAULT_COMPANY_ID ? createDemoWorkflow() : { purchases: [], sales: [], bills: [] };
   }
 }
 
@@ -1019,9 +1025,18 @@ function BillForm({ stock, save, close }) {
 }
 
 function InventoryPage() {
-  const { employees = [], attendance = {} } = useERP();
-  const isCEO = getCurrentUser()?.role === ROLES.CEO;
-  const [workflow, setWorkflow] = useState(loadWorkflow);
+  const { employees = [], attendance = {}, inventory = [] } = useERP();
+  const user = getCurrentUser();
+  const isCEO = user?.role === ROLES.CEO;
+  const [workspace, setWorkspace] = useState(() => {
+    const companyId = user?.companyId || '';
+    return { companyId, workflow: loadWorkflow(companyId) };
+  });
+  const { workflow } = workspace;
+  const setWorkflow = (update) => setWorkspace((current) => ({
+    ...current,
+    workflow: typeof update === 'function' ? update(current.workflow) : update,
+  }));
   const [tab, setTab] = useState('overview');
   const [purchaseId, setPurchaseId] = useState(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
@@ -1030,12 +1045,21 @@ function InventoryPage() {
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
+    const refreshCompanyWorkflow = () => {
+      const companyId = getCurrentUser()?.companyId || '';
+      setWorkspace({ companyId, workflow: loadWorkflow(companyId) });
+    };
+    window.addEventListener(AUTH_CHANGE_EVENT, refreshCompanyWorkflow);
+    return () => window.removeEventListener(AUTH_CHANGE_EVENT, refreshCompanyWorkflow);
+  }, []);
+
+  useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(workflow));
+      if (workspace.companyId) localStorage.setItem(storageKey(workspace.companyId), JSON.stringify(workspace.workflow));
     } catch (error) {
       console.error('Unable to save inventory workflow.', error);
     }
-  }, [workflow]);
+  }, [workspace]);
 
   const stock = useMemo(() => workflow.purchases.flatMap((purchase) => purchase.transfers.map((transfer) => ({
     key: `${purchase.id}:${transfer.id}`,
@@ -1179,6 +1203,26 @@ function InventoryPage() {
         {isCEO && <article className="inv-kpi-card"><span className="inv-kpi-icon is-violet"><FaRupeeSign /></span><div><span>Pending sales</span><strong>{money(summary.pendingSales)}</strong><small>Customer balances</small></div></article>}
         {isCEO && <article className="inv-kpi-card"><span className="inv-kpi-icon is-slate"><FiBarChart2 /></span><div><span>Total production cost</span><strong>{money(summary.productionCost)}</strong><small>Purchase value + stage costs</small></div></article>}
       </section>
+
+      {inventory.length > 0 && (
+        <section className="inv-section">
+          <div className="inv-section-heading">
+            <div><span className="inv-overline">JOURNAL ENTRIES</span><h2>Recorded inventory</h2><p>Items added from Journal Entry, linked to inventory valuation.</p></div>
+          </div>
+          <div className="inv-panel" style={{ overflowX: 'auto' }}>
+            <table className="erp-table">
+              <thead><tr><th>Item</th><th>Type</th><th>Quantity</th><th>Unit value</th><th>Total value</th><th>Date</th></tr></thead>
+              <tbody>{inventory.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.item}</td><td>{item.category || 'Inventory'}</td><td>{quantity(item.qty)}</td>
+                  <td>{money(item.price)}</td><td>{money(number(item.qty) * number(item.price))}</td>
+                  <td>{item.date ? formatDate(item.date) : '—'}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <nav className="inv-tabs" aria-label="Inventory sections">
         {tabs.map(({ id, label, icon: Icon, count }) => (

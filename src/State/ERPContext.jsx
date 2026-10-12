@@ -1,8 +1,16 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { recordOwnerActivity } from './auth';
+import {
+  AUTH_CHANGE_EVENT,
+  canAccessJournalCategory,
+  canAccessPath,
+  getCurrentUser,
+  recordOwnerActivity,
+} from './auth';
 
-const STORAGE_KEY = 'manufacture-erp-data';
+const LEGACY_STORAGE_KEY = 'manufacture-erp-data';
+const storageKey = (companyId) => `${LEGACY_STORAGE_KEY}-${companyId}`;
+const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const getLocalDateString = (date = new Date()) => {
   const year = date.getFullYear();
@@ -53,14 +61,33 @@ const initialData = {
   ],
 };
 
-function readStoredData() {
+const emptyData = {
+  income: [],
+  expense: [],
+  inventory: [],
+  manufacturingStages: [],
+  employees: [],
+  attendance: {},
+  ledger: [],
+  salary: [],
+  journalEntries: [],
+};
+
+function readStoredData(companyId) {
+  if (!companyId) return emptyData;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return initialData;
+    const key = storageKey(companyId);
+    let stored = localStorage.getItem(key);
+    if (!stored && companyId === 'manufacture-demo-company') {
+      stored = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (stored) localStorage.setItem(key, stored);
+    }
+    if (!stored) return companyId === 'manufacture-demo-company' ? initialData : emptyData;
 
     const storedData = JSON.parse(stored);
+    const companyDefaults = companyId === 'manufacture-demo-company' ? initialData : emptyData;
     const employeeNames = new Map();
-    const employees = (storedData.employees || initialData.employees).map((employee) => {
+    const employees = (storedData.employees || companyDefaults.employees).map((employee) => {
       const nameById = { 1: 'Ram', 2: 'Theva', 3: 'Priya' };
       const name = nameById[employee.id] || employee.name;
       if (employee.name !== name) employeeNames.set(employee.name.toLowerCase(), name);
@@ -73,42 +100,61 @@ function readStoredData() {
       return name ? { ...record, employee: name } : record;
     };
     return {
-      ...initialData,
+      ...(companyId === 'manufacture-demo-company' ? initialData : emptyData),
       ...storedData,
       employees,
-      salary: (storedData.salary || initialData.salary).map(renameHistoryEmployee),
-      ledger: (storedData.ledger || initialData.ledger).map(renameHistoryEmployee),
+      salary: (storedData.salary || companyDefaults.salary).map(renameHistoryEmployee),
+      ledger: (storedData.ledger || companyDefaults.ledger).map(renameHistoryEmployee),
+      journalEntries: Array.isArray(storedData.journalEntries) ? storedData.journalEntries : [],
     };
-  } catch {
-    return initialData;
+  } catch (error) {
+    console.error(`Unable to read saved data for company ${companyId}.`, error);
+    throw error;
   }
 }
 
 const ERPContext = createContext(null);
 
 export function ERPProvider({ children }) {
-  const [data, setData] = useState(readStoredData);
+  const [companyId, setCompanyId] = useState(() => getCurrentUser()?.companyId || '');
+  const [data, setData] = useState(() => readStoredData(getCurrentUser()?.companyId));
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
+    const refreshCompanyData = () => {
+      const nextCompanyId = getCurrentUser()?.companyId || '';
+      setCompanyId(nextCompanyId);
+      setData(readStoredData(nextCompanyId));
+    };
+    window.addEventListener(AUTH_CHANGE_EVENT, refreshCompanyData);
+    return () => window.removeEventListener(AUTH_CHANGE_EVENT, refreshCompanyData);
+  }, []);
+
+  useEffect(() => {
+    if (!companyId) return;
+    localStorage.setItem(storageKey(companyId), JSON.stringify(data));
+  }, [companyId, data]);
+
+  const assertAccess = (path) => {
+    if (!canAccessPath(getCurrentUser()?.role, path)) throw new Error('You do not have permission to change this information.');
+  };
 
   const value = useMemo(() => ({
     ...data,
-    addIncome: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, income: [{ ...record, id }, ...prev.income] })); recordOwnerActivity('Added income record', 'Income', id); },
-    deleteIncome: (id) => { setData((prev) => ({ ...prev, income: prev.income.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted income record', 'Income', id); },
-    addExpense: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, expense: [{ ...record, id }, ...prev.expense] })); recordOwnerActivity('Added expense record', 'Expense', id); },
-    deleteExpense: (id) => { setData((prev) => ({ ...prev, expense: prev.expense.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted expense record', 'Expense', id); },
-    addInventory: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, inventory: [{ ...record, id }, ...prev.inventory] })); recordOwnerActivity('Added inventory item', 'Inventory', id); },
-    updateInventory: (id, record) => { setData((prev) => ({ ...prev, inventory: prev.inventory.map((item) => item.id === id ? { ...item, ...record } : item) })); recordOwnerActivity('Updated inventory item', 'Inventory', id); },
-    deleteInventory: (id) => { setData((prev) => ({ ...prev, inventory: prev.inventory.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted inventory item', 'Inventory', id); },
-    addManufacturingStage: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, manufacturingStages: [...prev.manufacturingStages, { ...record, id }] })); recordOwnerActivity('Added manufacturing stage', 'Inventory', id); },
-    updateManufacturingStage: (id, record) => { setData((prev) => ({ ...prev, manufacturingStages: prev.manufacturingStages.map((item) => item.id === id ? { ...item, ...record } : item) })); recordOwnerActivity('Updated manufacturing stage', 'Inventory', id); },
-    deleteManufacturingStage: (id) => { setData((prev) => ({ ...prev, manufacturingStages: prev.manufacturingStages.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted manufacturing stage', 'Inventory', id); },
-    addEmployee: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, employees: [{ ...record, id }, ...prev.employees] })); recordOwnerActivity('Added employee', 'Attendance', id); },
-    updateEmployee: (id, record) => { setData((prev) => ({ ...prev, employees: prev.employees.map((item) => item.id === id ? { ...item, ...record } : item) })); recordOwnerActivity('Updated employee', 'Attendance', id); },
-    deleteEmployee: (id) => { setData((prev) => ({ ...prev, employees: prev.employees.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted employee', 'Attendance', id); },
+    addIncome: (record) => { assertAccess('/income'); const id = createId(); setData((prev) => ({ ...prev, income: [{ ...record, id }, ...prev.income] })); recordOwnerActivity('Added income record', 'Income', id); },
+    deleteIncome: (id) => { assertAccess('/income'); setData((prev) => ({ ...prev, income: prev.income.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted income record', 'Income', id); },
+    addExpense: (record) => { assertAccess('/expense'); const id = createId(); setData((prev) => ({ ...prev, expense: [{ ...record, id }, ...prev.expense] })); recordOwnerActivity('Added expense record', 'Expense', id); },
+    deleteExpense: (id) => { assertAccess('/expense'); setData((prev) => ({ ...prev, expense: prev.expense.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted expense record', 'Expense', id); },
+    addInventory: (record) => { assertAccess('/inventory'); const id = createId(); setData((prev) => ({ ...prev, inventory: [{ ...record, id }, ...prev.inventory] })); recordOwnerActivity('Added inventory item', 'Inventory', id); },
+    updateInventory: (id, record) => { assertAccess('/inventory'); setData((prev) => ({ ...prev, inventory: prev.inventory.map((item) => item.id === id ? { ...item, ...record } : item) })); recordOwnerActivity('Updated inventory item', 'Inventory', id); },
+    deleteInventory: (id) => { assertAccess('/inventory'); setData((prev) => ({ ...prev, inventory: prev.inventory.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted inventory item', 'Inventory', id); },
+    addManufacturingStage: (record) => { assertAccess('/inventory'); const id = createId(); setData((prev) => ({ ...prev, manufacturingStages: [...prev.manufacturingStages, { ...record, id }] })); recordOwnerActivity('Added manufacturing stage', 'Inventory', id); },
+    updateManufacturingStage: (id, record) => { assertAccess('/inventory'); setData((prev) => ({ ...prev, manufacturingStages: prev.manufacturingStages.map((item) => item.id === id ? { ...item, ...record } : item) })); recordOwnerActivity('Updated manufacturing stage', 'Inventory', id); },
+    deleteManufacturingStage: (id) => { assertAccess('/inventory'); setData((prev) => ({ ...prev, manufacturingStages: prev.manufacturingStages.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted manufacturing stage', 'Inventory', id); },
+    addEmployee: (record) => { assertAccess('/attendance'); const id = createId(); setData((prev) => ({ ...prev, employees: [{ ...record, id }, ...prev.employees] })); recordOwnerActivity('Added employee', 'Attendance', id); },
+    updateEmployee: (id, record) => { assertAccess('/attendance'); setData((prev) => ({ ...prev, employees: prev.employees.map((item) => item.id === id ? { ...item, ...record } : item) })); recordOwnerActivity('Updated employee', 'Attendance', id); },
+    deleteEmployee: (id) => { assertAccess('/attendance'); setData((prev) => ({ ...prev, employees: prev.employees.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted employee', 'Attendance', id); },
     saveAttendance: (date, records) => {
+      assertAccess('/attendance');
       if (date !== getLocalDateString()) return;
       setData((prev) => ({
         ...prev,
@@ -119,8 +165,112 @@ export function ERPProvider({ children }) {
       }));
       recordOwnerActivity('Updated attendance', 'Attendance', date);
     },
-    addLedgerEntry: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, ledger: [{ ...record, id }, ...prev.ledger] })); recordOwnerActivity('Added salary ledger entry', 'Salary', id); },
-    addSalary: (record) => { const id = Date.now(); setData((prev) => ({ ...prev, salary: [{ ...record, id }, ...prev.salary] })); recordOwnerActivity('Updated salary information', 'Salary', id); },
+    addLedgerEntry: (record) => { assertAccess('/salary'); const id = createId(); setData((prev) => ({ ...prev, ledger: [{ ...record, id }, ...prev.ledger] })); recordOwnerActivity('Added salary ledger entry', 'Salary', id); },
+    addSalary: (record) => { assertAccess('/salary'); const id = createId(); setData((prev) => ({ ...prev, salary: [{ ...record, id }, ...prev.salary] })); recordOwnerActivity('Updated salary information', 'Salary', id); },
+    saveJournalEntry: (record, existingId = null) => {
+      const user = getCurrentUser();
+      if (!canAccessPath(user?.role, '/journal-entry')
+        || !canAccessJournalCategory(user?.role, record.category, record.expenseType)) {
+        throw new Error('You do not have permission to save this journal entry.');
+      }
+      const oldEntry = existingId ? data.journalEntries.find((entry) => entry.id === existingId) : null;
+      if (existingId && !oldEntry) throw new Error('This journal entry no longer exists.');
+      if (oldEntry && !canAccessJournalCategory(user.role, oldEntry.category, oldEntry.expenseType)) {
+        throw new Error('You do not have permission to edit this journal entry.');
+      }
+      if (!record.date || !record.title?.trim() || !record.category || !Number.isFinite(Number(record.amount)) || Number(record.amount) <= 0) {
+        throw new Error('Enter a date, description, category, and amount greater than zero.');
+      }
+      if (record.category === 'Inventory' && (!record.inventoryItem?.trim()
+        || !Number.isFinite(Number(record.quantity)) || Number(record.quantity) <= 0)) {
+        throw new Error('Enter an inventory item and a quantity greater than zero.');
+      }
+      if (record.category === 'Expense' && record.expenseType === 'Salary' && !record.employee?.trim()) {
+        throw new Error('Choose an employee for the salary payment.');
+      }
+      const id = existingId || createId();
+      let linkedSalaryId;
+      setData((previous) => {
+        const old = previous.journalEntries.find((entry) => entry.id === id);
+        const entries = old
+          ? previous.journalEntries.map((entry) => entry.id === id ? { ...record, id, title: record.title.trim(), amount: Number(record.amount) } : entry)
+          : [{ ...record, id, title: record.title.trim(), amount: Number(record.amount) }, ...previous.journalEntries];
+        const withoutLinked = (items) => items.filter((item) => item.journalEntryId !== id);
+        const next = {
+          ...previous,
+          journalEntries: entries,
+          income: withoutLinked(previous.income),
+          expense: withoutLinked(previous.expense),
+          inventory: withoutLinked(previous.inventory),
+          salary: withoutLinked(previous.salary),
+        };
+        const saved = entries.find((entry) => entry.id === id);
+        if (saved.category === 'Income') {
+          next.income = [{ id: old?.linkedIncomeId || createId(), journalEntryId: id, title: saved.title, amount: saved.amount, date: saved.date }, ...next.income];
+        } else if (saved.category === 'Expense') {
+          next.expense = [{
+            id: old?.linkedExpenseId || createId(),
+            journalEntryId: id,
+            title: saved.title,
+            type: saved.expenseType,
+            amount: saved.amount,
+            date: saved.date,
+          }, ...next.expense];
+          if (saved.expenseType === 'Salary') {
+            linkedSalaryId = old?.linkedSalaryId || createId();
+            next.salary = [{
+              id: linkedSalaryId,
+              journalEntryId: id,
+              employee: saved.employee,
+              amount: saved.amount,
+              date: saved.date,
+              status: 'Paid',
+            }, ...next.salary];
+          }
+        } else {
+          next.inventory = [{
+            id: old?.linkedInventoryId || createId(),
+            journalEntryId: id,
+            item: saved.inventoryItem.trim(),
+            qty: Number(saved.quantity),
+            price: Number(saved.amount) / Number(saved.quantity),
+            category: saved.inventoryCategory || 'Materials',
+            date: saved.date,
+          }, ...next.inventory];
+        }
+        const entryWithLinks = {
+          ...saved,
+          linkedIncomeId: saved.category === 'Income' ? next.income[0].id : undefined,
+          linkedExpenseId: saved.category === 'Expense' ? next.expense[0].id : undefined,
+          linkedSalaryId: saved.category === 'Expense' && saved.expenseType === 'Salary' ? linkedSalaryId : undefined,
+          linkedInventoryId: saved.category === 'Inventory' ? next.inventory[0].id : undefined,
+        };
+        next.journalEntries = entries.map((entry) => entry.id === id ? entryWithLinks : entry);
+        return next;
+      });
+      recordOwnerActivity(existingId ? 'Updated journal entry' : 'Added journal entry', 'Journal Entry', id);
+      return id;
+    },
+    deleteJournalEntry: (id) => {
+      const user = getCurrentUser();
+      const entry = data.journalEntries.find((item) => item.id === id);
+      if (!entry) throw new Error('This journal entry no longer exists.');
+      if (!canAccessJournalCategory(user?.role, entry.category, entry.expenseType)) {
+        throw new Error('You do not have permission to delete this journal entry.');
+      }
+      setData((previous) => {
+        const withoutLinked = (items) => items.filter((item) => item.journalEntryId !== id);
+        return {
+          ...previous,
+          journalEntries: previous.journalEntries.filter((item) => item.id !== id),
+          income: withoutLinked(previous.income),
+          expense: withoutLinked(previous.expense),
+          inventory: withoutLinked(previous.inventory),
+          salary: withoutLinked(previous.salary),
+        };
+      });
+      recordOwnerActivity('Deleted journal entry', 'Journal Entry', id);
+    },
   }), [data]);
 
   return <ERPContext.Provider value={value}>{children}</ERPContext.Provider>;

@@ -4,7 +4,7 @@ import { getCurrentUser } from '../State/auth';
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
 
-const appPaths = new Set(['/login', '/register', '/dashboard', '/income', '/expense', '/inventory', '/salary', '/attendance', '/account-management']);
+const appPaths = new Set(['/login', '/register', '/dashboard', '/journal-entry', '/income', '/expense', '/inventory', '/salary', '/attendance', '/account-management']);
 
 function RootNavigator() {
   const location = useLocation();
