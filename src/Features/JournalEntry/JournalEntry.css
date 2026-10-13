@@ -31,6 +31,62 @@
   flex-wrap: wrap;
 }
 
+.journal-table-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.journal-table-filters label {
+  display: flex;
+  flex: 1 1 240px;
+  flex-direction: column;
+  gap: 6px;
+  color: #374151;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.journal-table-filters input,
+.journal-table-filters select {
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #111827;
+  font: inherit;
+  font-weight: 400;
+}
+
+.journal-table-filters input:focus,
+.journal-table-filters select:focus {
+  border-color: rgba(94, 169, 230, 0.5);
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(126, 200, 255, 0.12);
+}
+
+.journal-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.journal-sort-button svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
 @media (max-width: 640px) {
   .journal-form .field-grid {
     grid-template-columns: 1fr;
@@ -38,5 +94,9 @@
 
   .journal-page .content-panel {
     padding: 16px;
+  }
+
+  .journal-table-filters label {
+    flex-basis: 100%;
   }
 }

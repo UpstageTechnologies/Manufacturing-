@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiArrowDown, FiArrowUp, FiEdit2, FiMoreHorizontal, FiTrash2 } from 'react-icons/fi';
 import { formatCurrency, formatDate, useERP } from '../../State/ERPContext';
 import {
   canAccessJournalCategory,
@@ -13,6 +13,7 @@ const today = () => {
 };
 const categories = ['Income', 'Expense', 'Inventory'];
 const expenseTypes = ['Salary', 'Other Expenses'];
+const defaultSort = { key: 'date', direction: 'desc' };
 const blankForm = () => ({
   date: today(),
   title: '',
@@ -25,6 +26,27 @@ const blankForm = () => ({
   inventoryCategory: '',
 });
 
+const entryType = (entry) => (
+  entry.expenseType || (entry.category === 'Inventory' ? entry.inventoryCategory || 'Inventory' : '—')
+);
+
+const compareValues = (first, second, key, direction) => {
+  const firstEmpty = first == null || first === '';
+  const secondEmpty = second == null || second === '';
+  if (firstEmpty || secondEmpty) return firstEmpty === secondEmpty ? 0 : firstEmpty ? 1 : -1;
+
+  let comparison;
+  if (key === 'amount') {
+    comparison = Number(first) - Number(second);
+  } else {
+    comparison = String(first).localeCompare(String(second), undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    });
+  }
+  return direction === 'asc' ? comparison : -comparison;
+};
+
 function JournalEntryPage() {
   const user = getCurrentUser();
   const { journalEntries, employees, saveJournalEntry, deleteJournalEntry } = useERP();
@@ -32,6 +54,9 @@ function JournalEntryPage() {
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [sort, setSort] = useState(null);
   const availableCategories = categories.filter((category) => (
     category === 'Expense'
       ? canAccessJournalCategory(user?.role, category, 'Salary')
@@ -39,9 +64,63 @@ function JournalEntryPage() {
       : canAccessJournalCategory(user?.role, category)
   ));
   const availableExpenseTypes = expenseTypes.filter((type) => canAccessJournalCategory(user?.role, 'Expense', type));
-  const sortedEntries = journalEntries
+  const visibleEntries = journalEntries
     .filter((entry) => canAccessJournalCategory(user?.role, entry.category, entry.expenseType))
-    .sort((a, b) => b.date.localeCompare(a.date));
+    .filter((entry) => !categoryFilter || entry.category === categoryFilter)
+    .filter((entry) => {
+      const query = searchTerm.trim().toLocaleLowerCase();
+      if (!query) return true;
+      return [
+        entry.date,
+        formatDate(entry.date),
+        entry.title,
+        entry.category,
+        entryType(entry),
+        entry.amount,
+        formatCurrency(entry.amount),
+      ].some((value) => String(value ?? '').toLocaleLowerCase().includes(query));
+    });
+  const activeSort = sort || defaultSort;
+  const sortedEntries = visibleEntries
+    .map((entry, index) => ({ entry, index }))
+    .sort((first, second) => (
+      compareValues(
+        activeSort.key === 'type' ? entryType(first.entry) : first.entry[activeSort.key],
+        activeSort.key === 'type' ? entryType(second.entry) : second.entry[activeSort.key],
+        activeSort.key,
+        activeSort.direction,
+      )
+      || first.index - second.index
+    ))
+    .map(({ entry }) => entry);
+
+  const handleSort = (key) => {
+    setSort((current) => {
+      if (!current || current.key !== key) return { key, direction: 'asc' };
+      if (current.direction === 'asc') return { key, direction: 'desc' };
+      return null;
+    });
+  };
+
+  const sortHeader = (key, label) => {
+    const active = sort?.key === key;
+    const direction = active ? sort.direction : '';
+    const Icon = active
+      ? direction === 'asc' ? FiArrowUp : FiArrowDown
+      : FiMoreHorizontal;
+    return (
+      <th aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+        <button
+          type="button"
+          className="journal-sort-button"
+          onClick={() => handleSort(key)}
+          aria-label={`Sort by ${label}${active ? `, currently ${direction}` : ''}`}
+        >
+          {label}<Icon aria-hidden="true" />
+        </button>
+      </th>
+    );
+  };
 
   const handleCategoryChange = (category) => {
     setForm((current) => ({
@@ -178,9 +257,36 @@ function JournalEntryPage() {
 
       <div className="content-panel journal-table-panel">
         <div className="panel-header"><h3>Saved Entries</h3></div>
+        <div className="journal-table-filters">
+          <label>
+            <span>Search entries</span>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search date, description, type, amount..."
+            />
+          </label>
+          <label>
+            <span>Category</span>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option value="">All categories</option>
+              {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+          </label>
+        </div>
         <div className="journal-table-scroll">
           <table className="erp-table">
-            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th>Amount</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                {sortHeader('date', 'Date')}
+                {sortHeader('title', 'Description')}
+                {sortHeader('category', 'Category')}
+                {sortHeader('type', 'Type')}
+                {sortHeader('amount', 'Amount')}
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody>
               {sortedEntries.length ? sortedEntries.map((entry) => {
                 const canManage = canAccessJournalCategory(user?.role, entry.category, entry.expenseType);
@@ -189,7 +295,7 @@ function JournalEntryPage() {
                     <td>{formatDate(entry.date)}</td>
                     <td>{entry.title}</td>
                     <td>{entry.category}</td>
-                    <td>{entry.expenseType || (entry.category === 'Inventory' ? entry.inventoryCategory || 'Inventory' : '—')}</td>
+                    <td>{entryType(entry)}</td>
                     <td>{formatCurrency(entry.amount)}</td>
                     <td>
                       {canManage ? (
@@ -201,7 +307,9 @@ function JournalEntryPage() {
                     </td>
                   </tr>
                 );
-              }) : <tr><td colSpan="6" className="journal-empty">No journal entries yet.</td></tr>}
+              }) : <tr><td colSpan="6" className="journal-empty">
+                {searchTerm || categoryFilter ? 'No entries match your search or category filter.' : 'No journal entries yet.'}
+              </td></tr>}
             </tbody>
           </table>
         </div>
