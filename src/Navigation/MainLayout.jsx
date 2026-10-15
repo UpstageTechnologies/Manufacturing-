@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiBookOpen, FiMenu, FiPackage, FiTrendingUp, FiUsers, FiX, FiUserPlus } from 'react-icons/fi';
+import { FiBookOpen, FiCreditCard, FiMenu, FiPackage, FiTrendingUp, FiUsers, FiX, FiUserPlus } from 'react-icons/fi';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import '../Features/Dashboard/Dashboard.css';
 import { canAccessPath, getCurrentUser, logoutUser } from '../State/auth';
@@ -12,6 +12,7 @@ function MainLayout({ children }) {
   const links = [
     { path: '/dashboard', label: 'Dashboard', icon: FiTrendingUp },
     { path: '/journal-entry', label: 'Journal Entry', icon: FiBookOpen },
+    { path: '/salary', label: 'Salary', icon: FiCreditCard },
     { path: '/inventory', label: 'Inventory', icon: FiPackage },
     { path: '/attendance', label: 'Attendance', icon: FiUsers },
     { path: '/account-management', label: 'Owner Management', icon: FiUserPlus },

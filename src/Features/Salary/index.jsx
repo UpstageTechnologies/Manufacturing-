@@ -1,110 +1,96 @@
-import { useMemo, useState } from 'react';
-import { FiBarChart2, FiBookOpen, FiCheckCircle, FiFileText } from 'react-icons/fi';
-import { formatCurrency, formatDate, useERP } from '../../State/ERPContext';
+import { useState } from 'react';
+import { FiEdit2, FiSave } from 'react-icons/fi';
+import { formatCurrency, useERP } from '../../State/ERPContext';
 import './Salary.css';
 
+const salaryTypes = ['Per Day', 'Weekly', 'Monthly'];
+
+function getDefaultSettings(employee, attendanceCount, ledger) {
+  const period = employee.salaryPeriod || 'Monthly';
+  const salaryType = period === 'Per Day'
+    ? 'Per Day'
+    : period.includes('Weekly')
+      ? 'Weekly'
+      : period.includes('Bi-weekly')
+        ? 'Per Day'
+        : 'Monthly';
+  const previousEntries = ledger.filter((entry) => entry.employee === employee.name);
+
+  return {
+    salaryType,
+    amount: (Number(employee.salary) || 0) / (period.includes('Bi-weekly') ? 15 : 1),
+    units: salaryType === 'Per Day' ? attendanceCount : 1,
+    attendanceBased: salaryType === 'Per Day',
+    advance: previousEntries
+      .filter((entry) => !entry.type || entry.type === 'Advance')
+      .reduce((total, entry) => total + (Number(entry.amount) || 0), 0),
+    deduction: previousEntries
+      .filter((entry) => ['Deduction', 'Pattu', 'Other'].includes(entry.type))
+      .reduce((total, entry) => total + (Number(entry.amount) || 0), 0),
+  };
+}
+
+function getAttendanceCount(employeeId, attendance) {
+  return Object.values(attendance || {}).reduce((count, dayRecords) => {
+    const status = dayRecords?.[employeeId];
+    return count + (status === 'Present' || status === 'Late' ? 1 : 0);
+  }, 0);
+}
+
 function SalaryPage() {
-  const today = new Date().toISOString().split('T')[0];
-  const { employees, salary, attendance, ledger, addSalary, addLedgerEntry } = useERP();
-  const [form, setForm] = useState({ employee: employees[0]?.name || '', date: today });
-  const [ledgerForm, setLedgerForm] = useState({ employee: employees[0]?.name || '', type: 'Advance', amount: '', date: today });
-  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
-  const [isReportOpen, setIsReportOpen] = useState(false);
-  const [reportEmployee, setReportEmployee] = useState(employees[0]?.name || '');
+  const { employees, attendance, ledger = [], salarySettings = {}, saveSalarySettings } = useERP();
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  const selectedEmployee = useMemo(() => employees.find((employee) => employee.name === form.employee) || employees[0], [employees, form.employee]);
-  const reportSelectedEmployee = useMemo(() => employees.find((employee) => employee.name === reportEmployee) || employees[0], [employees, reportEmployee]);
-  const getSalaryPeriodDays = (employee) => {
-    if (!employee) return 30;
-    const periodMap = {
-      'Per Day': 1,
-      '7 Days / Weekly': 7,
-      '15 Days / Bi-weekly': 15,
-      Monthly: 30,
+  const getSettings = (employee, attendanceCount) => ({
+    ...getDefaultSettings(employee, attendanceCount, ledger),
+    ...salarySettings[employee.id],
+  });
+
+  const startEditing = (employee, attendanceCount) => {
+    setEditingId(employee.id);
+    setDraft(getSettings(employee, attendanceCount));
+    setError('');
+    setMessage('');
+  };
+
+  const handleSave = (employee) => {
+    const settings = {
+      ...draft,
+      amount: Number(draft.amount),
+      units: Number(draft.units),
+      advance: Number(draft.advance),
+      deduction: Number(draft.deduction),
     };
-    return periodMap[employee.salaryPeriod] || 30;
+
+    if (!salaryTypes.includes(settings.salaryType)
+      || !Number.isFinite(settings.amount) || settings.amount < 0
+      || !Number.isInteger(settings.units) || settings.units < 0
+      || !Number.isFinite(settings.advance) || settings.advance < 0
+      || !Number.isFinite(settings.deduction) || settings.deduction < 0) {
+      setError('Enter valid non-negative amounts and payment units before saving.');
+      setMessage('');
+      return;
+    }
+
+    try {
+      saveSalarySettings(employee.id, settings);
+      setEditingId(null);
+      setDraft(null);
+      setError('');
+      setMessage(`Salary settings saved for ${employee.name}.`);
+    } catch (saveError) {
+      setError(saveError.message || 'Unable to save salary settings.');
+      setMessage('');
+    }
   };
 
-  const getPresentDays = (employee) => {
-    if (!employee) return 0;
-
-    const attendanceEntries = Object.values(attendance || {});
-    return attendanceEntries.reduce((total, dayRecords) => {
-      const status = dayRecords?.[employee.id];
-      if (status === 'Present' || status === 'Late') {
-        return total + 1;
-      }
-      return total;
-    }, 0);
-  };
-
-  const calculatedSalary = useMemo(() => {
-    if (!selectedEmployee) return 0;
-    const perDaySalary = Number(selectedEmployee.salary || 0) / getSalaryPeriodDays(selectedEmployee);
-    return perDaySalary * getPresentDays(selectedEmployee);
-  }, [selectedEmployee, attendance]);
-  const reportCalculatedSalary = useMemo(() => {
-    if (!reportSelectedEmployee) return 0;
-    const perDaySalary = Number(reportSelectedEmployee.salary || 0) / getSalaryPeriodDays(reportSelectedEmployee);
-    return perDaySalary * getPresentDays(reportSelectedEmployee);
-  }, [reportSelectedEmployee, attendance]);
-
-  const totalLedgerAmount = useMemo(() => {
-    if (!selectedEmployee) return 0;
-    return ledger
-      .filter((entry) => entry.employee === selectedEmployee.name)
-      .reduce((total, entry) => total + Number(entry.amount || 0), 0);
-  }, [selectedEmployee, ledger]);
-  const reportTotalLedgerAmount = useMemo(() => {
-    if (!reportSelectedEmployee) return 0;
-    return ledger
-      .filter((entry) => entry.employee === reportSelectedEmployee.name)
-      .reduce((total, entry) => total + Number(entry.amount || 0), 0);
-  }, [reportSelectedEmployee, ledger]);
-  const balanceSalary = Math.max(calculatedSalary - totalLedgerAmount, 0);
-  const reportBalanceSalary = Math.max(reportCalculatedSalary - reportTotalLedgerAmount, 0);
-
-  const handleEmployeeChange = (event) => {
-    const employee = employees.find((item) => item.name === event.target.value);
-    setForm({ ...form, employee: event.target.value });
-    setLedgerForm((prev) => ({ ...prev, employee: event.target.value }));
-    setReportEmployee(employee?.name || event.target.value);
-  };
-
-  const handleSalarySubmit = (event) => {
-    event.preventDefault();
-    if (!form.employee || !selectedEmployee || calculatedSalary <= 0) return;
-
-    addSalary({
-      employee: selectedEmployee.name,
-      amount: Number(calculatedSalary.toFixed(2)),
-      date: form.date,
-      status: 'Paid',
-    });
-  };
-
-  const handleLedgerSubmit = (event) => {
-    event.preventDefault();
-    if (!ledgerForm.employee || Number(ledgerForm.amount) <= 0) return;
-
-    addLedgerEntry({
-      employee: ledgerForm.employee,
-      type: ledgerForm.type,
-      amount: Number(ledgerForm.amount),
-      date: ledgerForm.date,
-    });
-
-    setLedgerForm({ employee: form.employee, type: 'Advance', amount: '', date: today });
-    setIsLedgerOpen(false);
-  };
-
-  const openLedgerModal = (employeeName = form.employee) => {
-    setLedgerForm({ employee: employeeName, type: 'Advance', amount: '', date: today });
-    setIsLedgerOpen(true);
-  };
+  const updateDraft = (field, value) => setDraft((previous) => ({ ...previous, [field]: value }));
 
   return (
-    <div className="feature-page">
+    <div className="feature-page salary-page">
       <div className="feature-header">
         <div>
           <p className="eyebrow">Payroll</p>
@@ -112,164 +98,182 @@ function SalaryPage() {
         </div>
       </div>
 
-      <form className="content-panel form-panel" onSubmit={handleSalarySubmit}>
-        <div className="field-grid">
-          <div className="field-group">
-            <label>Employee</label>
-            <select value={form.employee} onChange={handleEmployeeChange}>
-              {employees.map((employee) => (
-                <option key={employee.name} value={employee.name}>{employee.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="field-group">
-            <label>Calculated Salary</label>
-            <input type="number" min="0" value={calculatedSalary.toFixed(2)} readOnly />
-          </div>
-          <div className="field-group">
-            <label>Date</label>
-            <input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} />
-          </div>
-        </div>
+      {error && <p className="salary-feedback error" role="alert">{error}</p>}
+      {message && <p className="salary-feedback success" role="status">{message}</p>}
 
-        <div className="salary-summary">
-          <div className="salary-summary-card">
-            <span>Per day salary</span>
-            <strong>{selectedEmployee ? formatCurrency(Number(selectedEmployee.salary || 0) / getSalaryPeriodDays(selectedEmployee)) : formatCurrency(0)}</strong>
-          </div>
-          <div className="salary-summary-card">
-            <span>Present days</span>
-            <strong>{getPresentDays(selectedEmployee)}</strong>
-          </div>
-          <div className="salary-summary-card">
-            <span>Total ledger</span>
-            <strong>{formatCurrency(totalLedgerAmount)}</strong>
-          </div>
-          <div className="salary-summary-card highlight">
-            <span>Balance salary</span>
-            <strong>{formatCurrency(balanceSalary)}</strong>
-          </div>
-        </div>
-
-        <div className="form-actions">
-          <button type="submit" className="primary-button">
-            <FiCheckCircle /> Save
-          </button>
-        </div>
-      </form>
-
-      <div className="content-panel">
+      <div className="content-panel salary-table-panel">
         <div className="panel-header">
-          <h3>Salary History</h3>
+          <div>
+            <h3>Employee Salaries</h3>
+            <p className="salary-table-caption">Per-day pay uses attendance by default. Weekly and monthly pay use the entered number of weeks or months.</p>
+          </div>
         </div>
-
-        <table className="erp-table">
-          <thead>
-            <tr>
-              <th>Employee</th>
-              <th>Salary</th>
-              <th>Date</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {salary.map((item) => (
-              <tr key={`${item.employee}-${item.date}-${item.id}`}>
-                <td>{item.employee}</td>
-                <td>{formatCurrency(item.amount)}</td>
-                <td>{formatDate(item.date)}</td>
-                <td>
-                  <span className={`salary-status ${item.status === 'Paid' ? 'paid' : 'pending'}`}>{item.status}</span>
-                </td>
-                <td>
-                  <div className="table-actions compact">
-                    <button type="button" className="table-action icon-action" aria-label={`Ledger for ${item.employee}`} onClick={() => openLedgerModal(item.employee)}>
-                      <FiBookOpen />
-                    </button>
-                    <button type="button" className="table-action icon-action" aria-label={`Report for ${item.employee}`} onClick={() => { setReportEmployee(item.employee); setIsReportOpen(true); }}>
-                      <FiBarChart2 />
-                    </button>
-                  </div>
-                </td>
+        <div className="salary-table-scroll">
+          <table className="erp-table salary-table">
+            <thead>
+              <tr>
+                <th>Employee Name</th>
+                <th>Attendance Count</th>
+                <th>Salary Type</th>
+                <th>Salary Amount</th>
+                <th>Advance / Deduction</th>
+                <th>Final Payable Salary</th>
+                <th>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {employees.map((employee) => {
+                const attendanceCount = getAttendanceCount(employee.id, attendance);
+                const settings = getSettings(employee, attendanceCount);
+                const isEditing = editingId === employee.id;
+                const current = isEditing ? draft : settings;
+                const units = current.attendanceBased ? attendanceCount : Number(current.units) || 0;
+                const earned = (Number(current.amount) || 0) * units;
+                const payable = earned - (Number(current.advance) || 0) - (Number(current.deduction) || 0);
+                const unitLabel = current.salaryType === 'Weekly'
+                  ? 'week(s)'
+                  : current.salaryType === 'Monthly'
+                    ? 'month(s)'
+                    : 'day(s)';
+
+                return (
+                  <tr key={employee.id}>
+                    <td>{employee.name}</td>
+                    <td>{attendanceCount}</td>
+                    <td>
+                      {isEditing ? (
+                        <div className="salary-field-stack">
+                          <select
+                            aria-label={`Salary type for ${employee.name}`}
+                            value={draft.salaryType}
+                            onChange={(event) => {
+                              const salaryType = event.target.value;
+                              setDraft((previous) => ({
+                                ...previous,
+                                salaryType,
+                                attendanceBased: salaryType === 'Per Day' && previous.attendanceBased,
+                                units: salaryType === 'Per Day' ? attendanceCount : 1,
+                              }));
+                            }}
+                          >
+                            {salaryTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                          </select>
+                          {draft.salaryType === 'Per Day' && (
+                            <label className="salary-attendance-toggle">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(draft.attendanceBased)}
+                                onChange={(event) => setDraft((previous) => ({
+                                  ...previous,
+                                  attendanceBased: event.target.checked,
+                                  units: event.target.checked ? attendanceCount : previous.units,
+                                }))}
+                              />
+                              Use attendance count
+                            </label>
+                          )}
+                          {!draft.attendanceBased && (
+                            <label className="salary-units-field">
+                              <span>{draft.salaryType === 'Weekly' ? 'Weeks' : draft.salaryType === 'Monthly' ? 'Months' : 'Days'}</span>
+                              <input
+                                aria-label={`${unitLabel} for ${employee.name}`}
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={draft.units}
+                                onChange={(event) => updateDraft('units', event.target.value)}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="salary-value-stack">
+                          <strong>{settings.salaryType}</strong>
+                          <span>{settings.attendanceBased ? `${attendanceCount} attendance day(s)` : `${settings.units} ${unitLabel}`}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {isEditing ? (
+                        <label className="salary-amount-field">
+                          <span>₹</span>
+                          <input
+                            aria-label={`Salary amount for ${employee.name}`}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={draft.amount}
+                            onChange={(event) => updateDraft('amount', event.target.value)}
+                          />
+                        </label>
+                      ) : formatCurrency(settings.amount)}
+                    </td>
+                    <td>
+                      {isEditing ? (
+                        <div className="salary-field-stack">
+                          <label className="salary-amount-field">
+                            <span>Advance ₹</span>
+                            <input
+                              aria-label={`Advance for ${employee.name}`}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={draft.advance}
+                              onChange={(event) => updateDraft('advance', event.target.value)}
+                            />
+                          </label>
+                          <label className="salary-amount-field">
+                            <span>Deduction ₹</span>
+                            <input
+                              aria-label={`Other deductions for ${employee.name}`}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={draft.deduction}
+                              onChange={(event) => updateDraft('deduction', event.target.value)}
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="salary-value-stack">
+                          <span>Advance {formatCurrency(settings.advance)}</span>
+                          <span>Deduction {formatCurrency(settings.deduction)}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className={payable < 0 ? 'salary-negative' : 'salary-payable'}>
+                      <strong>{formatCurrency(payable)}</strong>
+                      <span>Earned {formatCurrency(earned)}</span>
+                    </td>
+                    <td>
+                      {isEditing ? (
+                        <button
+                          type="button"
+                          className="primary-button salary-action-button"
+                          onClick={() => handleSave(employee)}
+                        >
+                          <FiSave /> Save
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="secondary-button salary-action-button"
+                          onClick={() => startEditing(employee, attendanceCount)}
+                        >
+                          <FiEdit2 /> Edit
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {!employees.length && (
+                <tr><td className="salary-empty-state" colSpan="7">No employee records are available. Add employees from Attendance.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      {isLedgerOpen && (
-        <div className="modal-overlay" onClick={() => setIsLedgerOpen(false)}>
-          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Ledger Entry</h3>
-              <button type="button" className="modal-close" onClick={() => setIsLedgerOpen(false)}>×</button>
-            </div>
-
-            <form className="modal-form" onSubmit={handleLedgerSubmit}>
-              <div className="field-group">
-                <label>Employee</label>
-                <select value={ledgerForm.employee} onChange={(event) => setLedgerForm({ ...ledgerForm, employee: event.target.value })}>
-                  {employees.map((employee) => (
-                    <option key={employee.name} value={employee.name}>{employee.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="field-group">
-                <label>Type</label>
-                <select value={ledgerForm.type} onChange={(event) => setLedgerForm({ ...ledgerForm, type: event.target.value })}>
-                  <option value="Advance">Advance</option>
-                  <option value="Deduction">Deduction</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div className="field-group">
-                <label>Amount</label>
-                <input type="number" min="0" value={ledgerForm.amount} onChange={(event) => setLedgerForm({ ...ledgerForm, amount: event.target.value })} placeholder="Enter amount" />
-              </div>
-
-              <div className="field-group">
-                <label>Date</label>
-                <input type="date" value={ledgerForm.date} onChange={(event) => setLedgerForm({ ...ledgerForm, date: event.target.value })} />
-              </div>
-
-              <button type="submit" className="primary-button full-width">Save Ledger</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isReportOpen && (
-        <div className="modal-overlay" onClick={() => setIsReportOpen(false)}>
-          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Salary Report</h3>
-              <button type="button" className="modal-close" onClick={() => setIsReportOpen(false)}>×</button>
-            </div>
-
-            <div className="modal-form report-panel">
-              <div className="report-stat-row">
-                <span>Employee</span>
-                <strong>{reportEmployee}</strong>
-              </div>
-              <div className="report-stat-row">
-                <span>Calculated Salary</span>
-                <strong>{formatCurrency(reportCalculatedSalary)}</strong>
-              </div>
-              <div className="report-stat-row">
-                <span>Ledger Total</span>
-                <strong>{formatCurrency(reportTotalLedgerAmount)}</strong>
-              </div>
-              <div className="report-stat-row balance-row">
-                <span>Balance Salary</span>
-                <strong>{formatCurrency(reportBalanceSalary)}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

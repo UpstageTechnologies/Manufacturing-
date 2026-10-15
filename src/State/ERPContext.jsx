@@ -59,6 +59,7 @@ const initialData = {
     { id: 2, employee: 'Theva', amount: 8500, date: '2026-06-06', status: 'Pending' },
     { id: 3, employee: 'Priya', amount: 8800, date: '2026-06-01', status: 'Paid' },
   ],
+  salarySettings: {},
 };
 
 const emptyData = {
@@ -70,6 +71,7 @@ const emptyData = {
   attendance: {},
   ledger: [],
   salary: [],
+  salarySettings: {},
   journalEntries: [],
 };
 
@@ -105,6 +107,9 @@ function readStoredData(companyId) {
       employees,
       salary: (storedData.salary || companyDefaults.salary).map(renameHistoryEmployee),
       ledger: (storedData.ledger || companyDefaults.ledger).map(renameHistoryEmployee),
+      salarySettings: storedData.salarySettings && typeof storedData.salarySettings === 'object'
+        ? storedData.salarySettings
+        : {},
       journalEntries: Array.isArray(storedData.journalEntries) ? storedData.journalEntries : [],
     };
   } catch (error) {
@@ -167,6 +172,35 @@ export function ERPProvider({ children }) {
     },
     addLedgerEntry: (record) => { assertAccess('/salary'); const id = createId(); setData((prev) => ({ ...prev, ledger: [{ ...record, id }, ...prev.ledger] })); recordOwnerActivity('Added salary ledger entry', 'Salary', id); },
     addSalary: (record) => { assertAccess('/salary'); const id = createId(); setData((prev) => ({ ...prev, salary: [{ ...record, id }, ...prev.salary] })); recordOwnerActivity('Updated salary information', 'Salary', id); },
+    saveSalarySettings: (employeeId, settings) => {
+      assertAccess('/salary');
+      if (!data.employees.some((employee) => employee.id === employeeId)) {
+        throw new Error('This employee record is no longer available.');
+      }
+      const salaryTypes = ['Per Day', 'Weekly', 'Monthly'];
+      const values = [settings.amount, settings.units, settings.advance, settings.deduction];
+      if (!salaryTypes.includes(settings.salaryType)
+        || values.some((value) => !Number.isFinite(Number(value)) || Number(value) < 0)
+        || !Number.isInteger(Number(settings.units))) {
+        throw new Error('Enter valid non-negative salary amounts and payment units.');
+      }
+      const savedSettings = {
+        salaryType: settings.salaryType,
+        amount: Number(settings.amount),
+        units: Number(settings.units),
+        attendanceBased: settings.salaryType === 'Per Day' && Boolean(settings.attendanceBased),
+        advance: Number(settings.advance),
+        deduction: Number(settings.deduction),
+      };
+      setData((previous) => ({
+        ...previous,
+        salarySettings: {
+          ...(previous.salarySettings || {}),
+          [employeeId]: savedSettings,
+        },
+      }));
+      recordOwnerActivity('Updated salary settings', 'Salary', employeeId);
+    },
     saveJournalEntry: (record, existingId = null) => {
       const user = getCurrentUser();
       if (!canAccessPath(user?.role, '/journal-entry')
