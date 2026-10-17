@@ -54,7 +54,8 @@
 }
 
 .salary-table select,
-.salary-table input[type='number'] {
+.salary-table input[type='number'],
+.salary-table input[type='date'] {
   width: 100%;
   min-width: 88px;
   min-height: 38px;
@@ -67,6 +68,10 @@
 
 .salary-amount-field input[type='number'] {
   width: 118px;
+}
+
+.salary-units-field input[type='date'] {
+  min-width: 142px;
 }
 
 .salary-attendance-toggle {

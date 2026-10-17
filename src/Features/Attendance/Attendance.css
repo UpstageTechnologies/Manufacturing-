@@ -1,12 +1,17 @@
 .attendance-date-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
-.attendance-date-controls strong {
-  min-width: 120px;
-  text-align: center;
+.attendance-date-input {
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid #dfe7e4;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
 }
 
 .attendance-date-controls .secondary-button {
@@ -20,6 +25,28 @@
   border-radius: 10px;
   background: #fff;
   color: #111827;
+}
+
+.attendance-date-controls .attendance-holiday-button {
+  width: auto;
+  min-width: 36px;
+  gap: 7px;
+  padding: 0 11px;
+}
+
+.attendance-date-controls .attendance-holiday-button.selected {
+  border-color: #facc15;
+  background: #fefce8;
+  color: #854d0e;
+}
+
+.attendance-holiday-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  color: #854d0e;
+  font-size: 0.85rem;
 }
 
 .attendance-status-actions {
@@ -161,11 +188,7 @@
 @media (max-width: 640px) {
   .attendance-date-controls {
     width: 100%;
-    justify-content: space-between;
-  }
-
-  .attendance-date-controls strong {
-    flex: 1;
+    justify-content: flex-start;
   }
 
   .attendance-status-actions {

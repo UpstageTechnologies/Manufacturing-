@@ -12,13 +12,6 @@ const LEGACY_STORAGE_KEY = 'manufacture-erp-data';
 const storageKey = (companyId) => `${LEGACY_STORAGE_KEY}-${companyId}`;
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-const getLocalDateString = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 const initialData = {
   income: [
     { id: 1, title: 'Product Sales', amount: 52000, date: '2026-06-12' },
@@ -53,6 +46,7 @@ const initialData = {
     { id: 3, name: 'Priya', address: '7 kanyakumari', phone: '+91 245 812 6630', salary: 8800, salaryPeriod: 'Monthly' },
   ],
   attendance: {},
+  holidays: {},
   ledger: [],
   salary: [
     { id: 1, employee: 'Ram', amount: 5000, date: '2026-06-12', status: 'Paid' },
@@ -69,6 +63,7 @@ const emptyData = {
   manufacturingStages: [],
   employees: [],
   attendance: {},
+  holidays: {},
   ledger: [],
   salary: [],
   salarySettings: {},
@@ -105,6 +100,8 @@ function readStoredData(companyId) {
       ...(companyId === 'manufacture-demo-company' ? initialData : emptyData),
       ...storedData,
       employees,
+      attendance: storedData.attendance && typeof storedData.attendance === 'object' ? storedData.attendance : {},
+      holidays: storedData.holidays && typeof storedData.holidays === 'object' ? storedData.holidays : {},
       salary: (storedData.salary || companyDefaults.salary).map(renameHistoryEmployee),
       ledger: (storedData.ledger || companyDefaults.ledger).map(renameHistoryEmployee),
       salarySettings: storedData.salarySettings && typeof storedData.salarySettings === 'object'
@@ -160,7 +157,9 @@ export function ERPProvider({ children }) {
     deleteEmployee: (id) => { assertAccess('/attendance'); setData((prev) => ({ ...prev, employees: prev.employees.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted employee', 'Attendance', id); },
     saveAttendance: (date, records) => {
       assertAccess('/attendance');
-      if (date !== getLocalDateString()) return;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !records || typeof records !== 'object') {
+        throw new Error('Choose a valid attendance date and records before saving.');
+      }
       setData((prev) => ({
         ...prev,
         attendance: {
@@ -170,6 +169,15 @@ export function ERPProvider({ children }) {
       }));
       recordOwnerActivity('Updated attendance', 'Attendance', date);
     },
+    setCompanyHoliday: (date, isHoliday) => {
+      assertAccess('/attendance');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Choose a valid holiday date.');
+      setData((prev) => ({
+        ...prev,
+        holidays: { ...(prev.holidays || {}), [date]: Boolean(isHoliday) },
+      }));
+      recordOwnerActivity(isHoliday ? 'Marked company holiday' : 'Removed company holiday', 'Attendance', date);
+    },
     addLedgerEntry: (record) => { assertAccess('/salary'); const id = createId(); setData((prev) => ({ ...prev, ledger: [{ ...record, id }, ...prev.ledger] })); recordOwnerActivity('Added salary ledger entry', 'Salary', id); },
     addSalary: (record) => { assertAccess('/salary'); const id = createId(); setData((prev) => ({ ...prev, salary: [{ ...record, id }, ...prev.salary] })); recordOwnerActivity('Updated salary information', 'Salary', id); },
     saveSalarySettings: (employeeId, settings) => {
@@ -177,18 +185,17 @@ export function ERPProvider({ children }) {
       if (!data.employees.some((employee) => employee.id === employeeId)) {
         throw new Error('This employee record is no longer available.');
       }
-      const salaryTypes = ['Per Day', 'Weekly', 'Monthly'];
       const values = [settings.amount, settings.units, settings.advance, settings.deduction];
-      if (!salaryTypes.includes(settings.salaryType)
-        || values.some((value) => !Number.isFinite(Number(value)) || Number(value) < 0)
-        || !Number.isInteger(Number(settings.units))) {
-        throw new Error('Enter valid non-negative salary amounts and payment units.');
+      if (values.some((value) => !Number.isFinite(Number(value)) || Number(value) < 0)
+        || !Number.isInteger(Number(settings.units)) || Number(settings.units) < 1
+        || !/^\d{4}-\d{2}-\d{2}$/.test(settings.periodEndDate)) {
+        throw new Error('Enter a valid daily salary, payment period, and period end date.');
       }
       const savedSettings = {
-        salaryType: settings.salaryType,
         amount: Number(settings.amount),
         units: Number(settings.units),
-        attendanceBased: settings.salaryType === 'Per Day' && Boolean(settings.attendanceBased),
+        attendanceBased: Boolean(settings.attendanceBased),
+        periodEndDate: settings.periodEndDate,
         advance: Number(settings.advance),
         deduction: Number(settings.deduction),
       };

@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { FiPlus, FiEdit2, FiTrash2, FiPhone, FiCheckCircle, FiXCircle, FiClock, FiChevronLeft, FiChevronRight, FiSave } from 'react-icons/fi';
+import { useState } from 'react';
+import { FiPlus, FiEdit2, FiTrash2, FiPhone, FiCheckCircle, FiXCircle, FiClock, FiChevronLeft, FiChevronRight, FiSave, FiSun } from 'react-icons/fi';
 import { formatCurrency, useERP } from '../../State/ERPContext';
 import './Attendance.css';
 
 const statusOptions = ['Present', 'Late', 'Absent'];
 const salaryPeriods = ['Per Day', '7 Days / Weekly', '15 Days / Bi-weekly', 'Monthly'];
 
-const getDateString = (date) => {
+const getDateString = (date = new Date()) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -22,11 +22,19 @@ const shiftDate = (dateString, amount) => {
 };
 
 function AttendancePage() {
-  const { employees, attendance, saveAttendance, addEmployee, updateEmployee, deleteEmployee } = useERP();
+  const {
+    employees,
+    attendance,
+    holidays = {},
+    saveAttendance,
+    setCompanyHoliday,
+    addEmployee,
+    updateEmployee,
+    deleteEmployee,
+  } = useERP();
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(getToday);
-  const [systemDate, setSystemDate] = useState(getToday);
   const [attendanceDraft, setAttendanceDraft] = useState(() => attendance?.[getToday()] || {});
   const [form, setForm] = useState({
     name: '',
@@ -36,29 +44,20 @@ function AttendancePage() {
     salaryPeriod: 'Monthly',
   });
 
-  useEffect(() => {
-    const refreshSystemDate = () => setSystemDate(getToday());
-    const intervalId = window.setInterval(refreshSystemDate, 60 * 1000);
-    window.addEventListener('focus', refreshSystemDate);
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener('focus', refreshSystemDate);
-    };
-  }, []);
-
-  const canEditSelectedDate = selectedDate === systemDate;
-
   const selectDate = (amount) => {
     const nextDate = shiftDate(selectedDate, amount);
     setSelectedDate(nextDate);
     setAttendanceDraft(attendance?.[nextDate] || {});
   };
 
+  const handleDateChange = (event) => {
+    const nextDate = event.target.value;
+    if (!nextDate) return;
+    setSelectedDate(nextDate);
+    setAttendanceDraft(attendance?.[nextDate] || {});
+  };
+
   const handleSaveAttendance = () => {
-    if (selectedDate !== getToday()) {
-      setSystemDate(getToday());
-      return;
-    }
     const records = Object.fromEntries(employees
       .filter((employee) => statusOptions.includes(attendanceDraft[employee.id]))
       .map((employee) => [employee.id, attendanceDraft[employee.id]]));
@@ -90,6 +89,8 @@ function AttendancePage() {
     setIsOpen(false);
   };
 
+  const isHoliday = Boolean(holidays[selectedDate]);
+
   return (
     <div className="feature-page">
       <div className="feature-header">
@@ -102,15 +103,32 @@ function AttendancePage() {
             <FiPlus /> Add Employee
           </button>
           <button type="button" className="secondary-button" aria-label="Previous date" onClick={() => selectDate(-1)}><FiChevronLeft /></button>
-          <strong>{new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong>
+          <input
+            className="attendance-date-input"
+            type="date"
+            aria-label="Attendance date"
+            value={selectedDate}
+            onChange={handleDateChange}
+          />
           <button type="button" className="secondary-button" aria-label="Next date" onClick={() => selectDate(1)}><FiChevronRight /></button>
+          <button
+            type="button"
+            className={`secondary-button attendance-holiday-button${isHoliday ? ' selected' : ''}`}
+            aria-pressed={isHoliday}
+            onClick={() => setCompanyHoliday(selectedDate, !isHoliday)}
+          >
+            <FiSun /> {isHoliday ? 'Holiday' : 'Mark Holiday'}
+          </button>
         </div>
       </div>
 
       <div className="content-panel">
         <div className="panel-header">
-          <h3>Employee List</h3>
-          <button type="button" className="primary-button" onClick={handleSaveAttendance} disabled={!canEditSelectedDate}>
+          <div>
+            <h3>Employee List</h3>
+            {isHoliday && <p className="attendance-holiday-status" role="status"><FiSun /> Company holiday — attendance statuses are unchanged.</p>}
+          </div>
+          <button type="button" className="primary-button" onClick={handleSaveAttendance}>
             <FiSave /> Save Attendance
           </button>
         </div>
@@ -144,10 +162,9 @@ function AttendancePage() {
                           className={`attendance-status-button ${status.toLowerCase()}${attendanceDraft[employee.id] === status ? ' selected' : ''}`}
                           aria-label={`${status} for ${employee.name}`}
                           aria-pressed={attendanceDraft[employee.id] === status}
-                          disabled={!canEditSelectedDate}
+                          disabled={isHoliday}
                           onClick={() => {
-                            if (selectedDate === getToday()) setAttendanceDraft((draft) => ({ ...draft, [employee.id]: status }));
-                            else setSystemDate(getToday());
+                            setAttendanceDraft((draft) => ({ ...draft, [employee.id]: status }));
                           }}
                         >
                           <StatusIcon />

@@ -3,24 +3,29 @@ import { FiEdit2, FiSave } from 'react-icons/fi';
 import { formatCurrency, useERP } from '../../State/ERPContext';
 import './Salary.css';
 
-const salaryTypes = ['Per Day', 'Weekly', 'Monthly'];
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
-function getDefaultSettings(employee, attendanceCount, ledger) {
-  const period = employee.salaryPeriod || 'Monthly';
-  const salaryType = period === 'Per Day'
-    ? 'Per Day'
-    : period.includes('Weekly')
-      ? 'Weekly'
-      : period.includes('Bi-weekly')
-        ? 'Per Day'
-        : 'Monthly';
+function getDefaultSettings(employee, ledger) {
   const previousEntries = ledger.filter((entry) => entry.employee === employee.name);
+  const period = employee.salaryPeriod || '';
+  const units = period.includes('7 Days') || period === 'Weekly'
+    ? 7
+    : period.includes('15 Days') || period.includes('Bi-weekly')
+      ? 15
+      : period === 'Per Day'
+        ? 1
+        : 0;
 
   return {
-    salaryType,
-    amount: (Number(employee.salary) || 0) / (period.includes('Bi-weekly') ? 15 : 1),
-    units: salaryType === 'Per Day' ? attendanceCount : 1,
-    attendanceBased: salaryType === 'Per Day',
+    amount: Number(employee.salary) || 0,
+    units,
+    attendanceBased: false,
+    periodEndDate: getLocalDateString(),
     advance: previousEntries
       .filter((entry) => !entry.type || entry.type === 'Advance')
       .reduce((total, entry) => total + (Number(entry.amount) || 0), 0),
@@ -30,11 +35,40 @@ function getDefaultSettings(employee, attendanceCount, ledger) {
   };
 }
 
-function getAttendanceCount(employeeId, attendance) {
-  return Object.values(attendance || {}).reduce((count, dayRecords) => {
-    const status = dayRecords?.[employeeId];
-    return count + (status === 'Present' || status === 'Late' ? 1 : 0);
-  }, 0);
+function getSettings(employee, ledger, savedSettings) {
+  const defaults = getDefaultSettings(employee, ledger);
+  if (!savedSettings) return defaults;
+
+  const legacySettings = !savedSettings.periodEndDate;
+  let units = Number(savedSettings.units) || 0;
+  if (legacySettings && savedSettings.salaryType === 'Weekly') units *= 7;
+  if (legacySettings && savedSettings.salaryType === 'Monthly') units = 0;
+
+  return {
+    ...defaults,
+    ...savedSettings,
+    units,
+    attendanceBased: legacySettings
+      ? savedSettings.salaryType === 'Per Day' && Boolean(savedSettings.attendanceBased)
+      : Boolean(savedSettings.attendanceBased),
+    periodEndDate: savedSettings.periodEndDate || getLocalDateString(),
+  };
+}
+
+function getPeriodAttendanceCount(employeeId, attendance, periodDays, periodEndDate) {
+  if (!Number.isInteger(Number(periodDays)) || Number(periodDays) < 1 || !periodEndDate) return 0;
+  const endDate = new Date(`${periodEndDate}T00:00:00`);
+  if (Number.isNaN(endDate.getTime())) return 0;
+
+  let count = 0;
+  for (let offset = 0; offset < Number(periodDays); offset += 1) {
+    const date = new Date(endDate);
+    date.setDate(date.getDate() - offset);
+    const dateString = getLocalDateString(date);
+    const status = attendance?.[dateString]?.[employeeId];
+    if (status === 'Present' || status === 'Late') count += 1;
+  }
+  return count;
 }
 
 function SalaryPage() {
@@ -44,14 +78,16 @@ function SalaryPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  const getSettings = (employee, attendanceCount) => ({
-    ...getDefaultSettings(employee, attendanceCount, ledger),
-    ...salarySettings[employee.id],
-  });
-
-  const startEditing = (employee, attendanceCount) => {
+  const startEditing = (employee) => {
+    const settings = getSettings(employee, ledger, salarySettings[employee.id]);
     setEditingId(employee.id);
-    setDraft(getSettings(employee, attendanceCount));
+    setDraft({
+      ...settings,
+      amount: String(settings.amount ?? 0),
+      units: String(settings.units ?? 0),
+      advance: String(settings.advance ?? 0),
+      deduction: String(settings.deduction ?? 0),
+    });
     setError('');
     setMessage('');
   };
@@ -65,12 +101,12 @@ function SalaryPage() {
       deduction: Number(draft.deduction),
     };
 
-    if (!salaryTypes.includes(settings.salaryType)
-      || !Number.isFinite(settings.amount) || settings.amount < 0
-      || !Number.isInteger(settings.units) || settings.units < 0
+    if (!Number.isFinite(settings.amount) || settings.amount < 0
+      || !Number.isInteger(settings.units) || settings.units < 1
       || !Number.isFinite(settings.advance) || settings.advance < 0
-      || !Number.isFinite(settings.deduction) || settings.deduction < 0) {
-      setError('Enter valid non-negative amounts and payment units before saving.');
+      || !Number.isFinite(settings.deduction) || settings.deduction < 0
+      || !settings.periodEndDate) {
+      setError('Enter a valid daily salary, payment period, and period end date.');
       setMessage('');
       return;
     }
@@ -105,7 +141,7 @@ function SalaryPage() {
         <div className="panel-header">
           <div>
             <h3>Employee Salaries</h3>
-            <p className="salary-table-caption">Per-day pay uses attendance by default. Weekly and monthly pay use the entered number of weeks or months.</p>
+            <p className="salary-table-caption">Enter daily pay and the exact payment period. Attendance-based pay counts Present and Late records for this employee within the selected date range.</p>
           </div>
         </div>
         <div className="salary-table-scroll">
@@ -113,9 +149,9 @@ function SalaryPage() {
             <thead>
               <tr>
                 <th>Employee Name</th>
-                <th>Attendance Count</th>
-                <th>Salary Type</th>
-                <th>Salary Amount</th>
+                <th>Attendance in Period</th>
+                <th>Payment Period</th>
+                <th>Salary per Day</th>
                 <th>Advance / Deduction</th>
                 <th>Final Payable Salary</th>
                 <th>Action</th>
@@ -123,18 +159,22 @@ function SalaryPage() {
             </thead>
             <tbody>
               {employees.map((employee) => {
-                const attendanceCount = getAttendanceCount(employee.id, attendance);
-                const settings = getSettings(employee, attendanceCount);
+                const settings = getSettings(employee, ledger, salarySettings[employee.id]);
                 const isEditing = editingId === employee.id;
                 const current = isEditing ? draft : settings;
-                const units = current.attendanceBased ? attendanceCount : Number(current.units) || 0;
-                const earned = (Number(current.amount) || 0) * units;
+                const attendanceCount = getPeriodAttendanceCount(
+                  employee.id,
+                  attendance,
+                  Number(current.units),
+                  current.periodEndDate,
+                );
+                const paidDays = current.attendanceBased ? attendanceCount : Number(current.units) || 0;
+                const earned = (Number(current.amount) || 0) * paidDays;
                 const payable = earned - (Number(current.advance) || 0) - (Number(current.deduction) || 0);
-                const unitLabel = current.salaryType === 'Weekly'
-                  ? 'week(s)'
-                  : current.salaryType === 'Monthly'
-                    ? 'month(s)'
-                    : 'day(s)';
+                const periodStartDate = current.periodEndDate ? new Date(`${current.periodEndDate}T00:00:00`) : null;
+                const periodStart = periodStartDate && Number(current.units) > 0
+                  ? getLocalDateString(new Date(periodStartDate.setDate(periodStartDate.getDate() - Number(current.units) + 1)))
+                  : '';
 
                 return (
                   <tr key={employee.id}>
@@ -143,53 +183,40 @@ function SalaryPage() {
                     <td>
                       {isEditing ? (
                         <div className="salary-field-stack">
-                          <select
-                            aria-label={`Salary type for ${employee.name}`}
-                            value={draft.salaryType}
-                            onChange={(event) => {
-                              const salaryType = event.target.value;
-                              setDraft((previous) => ({
-                                ...previous,
-                                salaryType,
-                                attendanceBased: salaryType === 'Per Day' && previous.attendanceBased,
-                                units: salaryType === 'Per Day' ? attendanceCount : 1,
-                              }));
-                            }}
-                          >
-                            {salaryTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-                          </select>
-                          {draft.salaryType === 'Per Day' && (
-                            <label className="salary-attendance-toggle">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(draft.attendanceBased)}
-                                onChange={(event) => setDraft((previous) => ({
-                                  ...previous,
-                                  attendanceBased: event.target.checked,
-                                  units: event.target.checked ? attendanceCount : previous.units,
-                                }))}
-                              />
-                              Use attendance count
-                            </label>
-                          )}
-                          {!draft.attendanceBased && (
-                            <label className="salary-units-field">
-                              <span>{draft.salaryType === 'Weekly' ? 'Weeks' : draft.salaryType === 'Monthly' ? 'Months' : 'Days'}</span>
-                              <input
-                                aria-label={`${unitLabel} for ${employee.name}`}
-                                type="number"
-                                min="0"
-                                step="1"
-                                value={draft.units}
-                                onChange={(event) => updateDraft('units', event.target.value)}
-                              />
-                            </label>
-                          )}
+                          <label className="salary-units-field">
+                            <span>Days</span>
+                            <input
+                              aria-label={`Payment period in days for ${employee.name}`}
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={draft.units}
+                              onChange={(event) => updateDraft('units', event.target.value)}
+                            />
+                          </label>
+                          <label className="salary-units-field">
+                            <span>Period end</span>
+                            <input
+                              aria-label={`Payment period end date for ${employee.name}`}
+                              type="date"
+                              value={draft.periodEndDate}
+                              onChange={(event) => updateDraft('periodEndDate', event.target.value)}
+                            />
+                          </label>
+                          <label className="salary-attendance-toggle">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(draft.attendanceBased)}
+                              onChange={(event) => updateDraft('attendanceBased', event.target.checked)}
+                            />
+                            Calculate from attendance
+                          </label>
                         </div>
                       ) : (
                         <div className="salary-value-stack">
-                          <strong>{settings.salaryType}</strong>
-                          <span>{settings.attendanceBased ? `${attendanceCount} attendance day(s)` : `${settings.units} ${unitLabel}`}</span>
+                          <strong>{settings.units} day(s)</strong>
+                          <span>{periodStart && current.periodEndDate ? `${periodStart} to ${current.periodEndDate}` : 'Set payment period'}</span>
+                          <span>{settings.attendanceBased ? 'Uses attendance' : 'Uses entered days'}</span>
                         </div>
                       )}
                     </td>
@@ -198,7 +225,7 @@ function SalaryPage() {
                         <label className="salary-amount-field">
                           <span>₹</span>
                           <input
-                            aria-label={`Salary amount for ${employee.name}`}
+                            aria-label={`Daily salary for ${employee.name}`}
                             type="number"
                             min="0"
                             step="0.01"
@@ -258,7 +285,7 @@ function SalaryPage() {
                         <button
                           type="button"
                           className="secondary-button salary-action-button"
-                          onClick={() => startEditing(employee, attendanceCount)}
+                          onClick={() => startEditing(employee)}
                         >
                           <FiEdit2 /> Edit
                         </button>
