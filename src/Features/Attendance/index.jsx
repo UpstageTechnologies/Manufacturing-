@@ -1,9 +1,29 @@
 import { useState } from 'react';
-import { FiPlus, FiEdit2, FiTrash2, FiPhone, FiCheckCircle, FiXCircle, FiClock, FiChevronLeft, FiChevronRight, FiSave, FiSun } from 'react-icons/fi';
+import {
+  FiPlus,
+  FiEdit2,
+  FiTrash2,
+  FiPhone,
+  FiCheckCircle,
+  FiXCircle,
+  FiClock,
+  FiChevronLeft,
+  FiChevronRight,
+  FiSave,
+  FiSun,
+  FiMinus,
+  FiSearch,
+  FiUsers,
+} from 'react-icons/fi';
 import { formatCurrency, useERP } from '../../State/ERPContext';
 import './Attendance.css';
 
-const statusOptions = ['Present', 'Late', 'Absent'];
+const statusOptions = [
+  { value: 'Present', icon: FiCheckCircle, className: 'present' },
+  { value: 'Late', icon: FiClock, className: 'late' },
+  { value: 'Absent', icon: FiXCircle, className: 'absent' },
+  { value: 'Not Marked', icon: FiMinus, className: 'not-marked' },
+];
 const salaryPeriods = ['Per Day', '7 Days / Weekly', '15 Days / Bi-weekly', 'Monthly'];
 
 const getDateString = (date = new Date()) => {
@@ -36,6 +56,10 @@ function AttendancePage() {
   const [editingId, setEditingId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(getToday);
   const [attendanceDraft, setAttendanceDraft] = useState(() => attendance?.[getToday()] || {});
+  const [openStatusId, setOpenStatusId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [attendanceFeedback, setAttendanceFeedback] = useState({ type: '', text: '' });
   const [form, setForm] = useState({
     name: '',
     address: '',
@@ -48,6 +72,8 @@ function AttendancePage() {
     const nextDate = shiftDate(selectedDate, amount);
     setSelectedDate(nextDate);
     setAttendanceDraft(attendance?.[nextDate] || {});
+    setOpenStatusId(null);
+    setAttendanceFeedback({ type: '', text: '' });
   };
 
   const handleDateChange = (event) => {
@@ -55,14 +81,24 @@ function AttendancePage() {
     if (!nextDate) return;
     setSelectedDate(nextDate);
     setAttendanceDraft(attendance?.[nextDate] || {});
+    setOpenStatusId(null);
+    setAttendanceFeedback({ type: '', text: '' });
   };
 
   const handleSaveAttendance = () => {
     const records = Object.fromEntries(employees
-      .filter((employee) => statusOptions.includes(attendanceDraft[employee.id]))
+      .filter((employee) => statusOptions.some(({ value }) => attendanceDraft[employee.id] === value))
       .map((employee) => [employee.id, attendanceDraft[employee.id]]));
-    saveAttendance(selectedDate, records);
-    setAttendanceDraft(records);
+    try {
+      saveAttendance(selectedDate, records);
+      setAttendanceDraft((previous) => ({ ...previous, ...records }));
+      setAttendanceFeedback({ type: 'success', text: 'Attendance saved successfully.' });
+    } catch (error) {
+      setAttendanceFeedback({
+        type: 'error',
+        text: error.message || 'Unable to save attendance. Please try again.',
+      });
+    }
   };
 
   const handleChange = (event) => {
@@ -90,13 +126,36 @@ function AttendancePage() {
   };
 
   const isHoliday = Boolean(holidays[selectedDate]);
+  const departments = [...new Set(employees
+    .map((employee) => employee.department || employee.departmentName)
+    .filter(Boolean)
+    .map(String))];
+  const filteredEmployees = employees.filter((employee) => {
+    const department = String(employee.department || employee.departmentName || '');
+    const searchText = [
+      employee.id,
+      employee.name,
+      employee.phone,
+      employee.address,
+    ].join(' ').toLowerCase();
+    return searchText.includes(searchQuery.trim().toLowerCase())
+      && (!departmentFilter || department === departmentFilter);
+  });
+  const attendanceCounts = employees.reduce((counts, employee) => {
+    const status = attendanceDraft[employee.id];
+    if (status === 'Present' || status === 'Late' || status === 'Absent') {
+      counts[status] += 1;
+    }
+    return counts;
+  }, { Present: 0, Late: 0, Absent: 0 });
 
   return (
-    <div className="feature-page">
+    <div className="feature-page attendance-page">
       <div className="feature-header">
         <div>
           <p className="eyebrow">Workforce</p>
           <h1 className="page-title">Attendance</h1>
+          <span className="attendance-shift-indicator"><span /> Single Shift</span>
         </div>
         <div className="attendance-date-controls">
           <button type="button" className="primary-button" onClick={() => setIsOpen(true)}>
@@ -122,72 +181,144 @@ function AttendancePage() {
         </div>
       </div>
 
-      <div className="content-panel">
+      <section className="attendance-summary-grid" aria-label="Attendance summary">
+        <article className="attendance-summary-card total">
+          <span className="attendance-summary-icon"><FiUsers /></span>
+          <div><span>Total Employees</span><strong>{employees.length}</strong></div>
+        </article>
+        <article className="attendance-summary-card present">
+          <span className="attendance-summary-icon"><FiCheckCircle /></span>
+          <div><span>Present</span><strong>{attendanceCounts.Present}</strong></div>
+        </article>
+        <article className="attendance-summary-card late">
+          <span className="attendance-summary-icon"><FiClock /></span>
+          <div><span>Late</span><strong>{attendanceCounts.Late}</strong></div>
+        </article>
+        <article className="attendance-summary-card absent">
+          <span className="attendance-summary-icon"><FiXCircle /></span>
+          <div><span>Absent</span><strong>{attendanceCounts.Absent}</strong></div>
+        </article>
+      </section>
+
+      <div className="content-panel attendance-panel">
         <div className="panel-header">
           <div>
-            <h3>Employee List</h3>
+            <h3>Employee Attendance</h3>
             {isHoliday && <p className="attendance-holiday-status" role="status"><FiSun /> Company holiday — attendance statuses are unchanged.</p>}
           </div>
-          <button type="button" className="primary-button" onClick={handleSaveAttendance}>
+        </div>
+
+        <div className="attendance-table-tools">
+          <label className="attendance-search">
+            <FiSearch aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Search employees"
+              placeholder="Search employees..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </label>
+          {departments.length > 0 && (
+            <label className="attendance-department-filter">
+              <span className="sr-only">Filter by department</span>
+              <select value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)}>
+                <option value="">All departments</option>
+                {departments.map((department) => <option key={department} value={department}>{department}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+
+        <div className="attendance-table-scroll">
+          <table className="erp-table attendance-table">
+            <thead>
+              <tr>
+                <th>Employee ID</th>
+                <th>Employee Name</th>
+                <th>Mobile Number</th>
+                <th>Address</th>
+                <th>Salary</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredEmployees.map((employee) => {
+                const status = attendanceDraft[employee.id] || 'Not Marked';
+                const selectedStatus = statusOptions.find((option) => option.value === status) || statusOptions[3];
+                const CurrentStatusIcon = selectedStatus.icon;
+                return (
+                  <tr key={employee.id}>
+                    <td className="attendance-id-cell">{employee.id}</td>
+                    <td className="attendance-name-cell">{employee.name}</td>
+                    <td>{employee.phone}</td>
+                    <td>{employee.address || 'Not provided'}</td>
+                    <td>{formatCurrency(employee.salary)}</td>
+                    <td>
+                      <div className="attendance-status-picker">
+                        <button
+                          type="button"
+                          className={`attendance-status-button ${selectedStatus.className}`}
+                          aria-label={`${status} attendance for ${employee.name}`}
+                          aria-expanded={openStatusId === employee.id}
+                          aria-haspopup="true"
+                          disabled={isHoliday}
+                          onClick={() => setOpenStatusId((current) => current === employee.id ? null : employee.id)}
+                        >
+                          <CurrentStatusIcon aria-hidden="true" />
+                        </button>
+                        {openStatusId === employee.id && (
+                          <div className="attendance-status-menu" role="group" aria-label={`Choose attendance status for ${employee.name}`}>
+                            {statusOptions.map(({ value, icon: StatusIcon, className }) => (
+                              <button
+                                key={value}
+                                type="button"
+                                className={`attendance-status-button ${className}${status === value ? ' selected' : ''}`}
+                                aria-label={`${value} for ${employee.name}`}
+                                aria-pressed={status === value}
+                                onClick={() => {
+                                  setAttendanceDraft((draft) => ({ ...draft, [employee.id]: value }));
+                                  setOpenStatusId(null);
+                                  setAttendanceFeedback({ type: '', text: '' });
+                                }}
+                              >
+                                <StatusIcon aria-hidden="true" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="table-actions compact attendance-row-actions">
+                        <button type="button" className="table-action icon-action attendance-edit-action" aria-label={`Edit ${employee.name}`} title="Edit employee" onClick={() => { setEditingId(employee.id); setForm({ name: employee.name, address: employee.address, phone: employee.phone, salary: employee.salary, salaryPeriod: employee.salaryPeriod || 'Monthly' }); setIsOpen(true); }}>
+                          <FiEdit2 />
+                        </button>
+                        <button type="button" className="table-action icon-action danger" aria-label={`Delete ${employee.name}`} onClick={() => deleteEmployee(employee.id)}>
+                          <FiTrash2 />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredEmployees.length === 0 && (
+                <tr><td className="attendance-empty-state" colSpan="7">No employees match your search.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {attendanceFeedback.text && (
+          <p className={`attendance-feedback ${attendanceFeedback.type}`} role={attendanceFeedback.type === 'error' ? 'alert' : 'status'}>
+            {attendanceFeedback.text}
+          </p>
+        )}
+        <div className="attendance-save-row">
+          <button type="button" className="primary-button attendance-save-button" onClick={handleSaveAttendance}>
             <FiSave /> Save Attendance
           </button>
         </div>
-
-        <table className="erp-table">
-          <thead>
-            <tr>
-              <th>Employee Name</th>
-              <th>Address</th>
-              <th>Mobile</th>
-              <th>Salary</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {employees.map((employee) => (
-              <tr key={employee.id}>
-                <td>{employee.name}</td>
-                <td>{employee.address}</td>
-                <td>{employee.phone}</td>
-                <td>{formatCurrency(employee.salary)}</td>
-                <td>
-                  <div className="attendance-status-actions" role="group" aria-label={`Attendance status for ${employee.name}`}>
-                    {statusOptions.map((status) => {
-                      const StatusIcon = status === 'Present' ? FiCheckCircle : status === 'Absent' ? FiXCircle : FiClock;
-                      return (
-                        <button
-                          key={status}
-                          type="button"
-                          className={`attendance-status-button ${status.toLowerCase()}${attendanceDraft[employee.id] === status ? ' selected' : ''}`}
-                          aria-label={`${status} for ${employee.name}`}
-                          aria-pressed={attendanceDraft[employee.id] === status}
-                          disabled={isHoliday}
-                          onClick={() => {
-                            setAttendanceDraft((draft) => ({ ...draft, [employee.id]: status }));
-                          }}
-                        >
-                          <StatusIcon />
-                        </button>
-                      );
-                    })}
-                    <span>{attendanceDraft[employee.id] || 'Not Marked'}</span>
-                  </div>
-                </td>
-                <td>
-                  <div className="table-actions compact">
-                    <button type="button" className="table-action icon-action" aria-label="Edit employee" onClick={() => { setEditingId(employee.id); setForm({ name: employee.name, address: employee.address, phone: employee.phone, salary: employee.salary, salaryPeriod: employee.salaryPeriod || 'Monthly' }); setIsOpen(true); }}>
-                      <FiEdit2 />
-                    </button>
-                    <button type="button" className="table-action icon-action danger" aria-label="Delete employee" onClick={() => deleteEmployee(employee.id)}>
-                      <FiTrash2 />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
 
       {isOpen && (
