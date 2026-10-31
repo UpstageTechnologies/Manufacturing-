@@ -212,7 +212,13 @@
 .salary-table th:nth-child(10),
 .salary-table td:nth-child(10) { width: 7%; }
 
-.salary-name-wrap,
+.salary-name-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .salary-inline-edit {
   display: flex;
   align-items: center;
@@ -227,28 +233,67 @@
 }
 
 .salary-row-action {
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  padding: 0;
+  display: inline-flex;
+  flex: 0 0 26px;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 4px;
   border: 1px solid #dfe7ee;
   border-radius: 6px;
   background: #f8fafc;
+  color: #64748b;
   cursor: pointer;
-  position: relative;
-}
-
-.salary-row-action::before {
-  content: '';
-  position: absolute;
-  inset: 5px;
-  border-radius: 3px;
-  background: #64748b;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .salary-row-action:hover {
   border-color: #cbd5e1;
   background: #eef4ff;
+  color: #2563eb;
+}
+
+.salary-row-action:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.salary-row-action svg {
+  width: 16px;
+  height: 16px;
+}
+
+.salary-save-button {
+  display: inline-flex;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  border: 1px solid #dfe7ee;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.salary-save-button:hover {
+  border-color: #bfdbfe;
+  background: #eef4ff;
+  color: #2563eb;
+}
+
+.salary-save-button:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.salary-save-button svg {
+  width: 17px;
+  height: 17px;
 }
 
 .salary-type-cell,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiSave } from 'react-icons/fi';
+import { FiEdit2, FiSave } from 'react-icons/fi';
 import { formatCurrency, formatDate, useERP } from '../../State/ERPContext';
 import './Salary.css';
 
@@ -646,19 +646,23 @@ function SalaryPage() {
                           isEditing ? (
                             <button
                               type="button"
-                              className="primary-button salary-action-button"
+                              className="salary-save-button"
+                              aria-label={`Save salary settings for ${employee.name}`}
+                              title="Save salary settings"
                               onClick={() => handleSave(employee)}
                             >
-                              <FiSave /> Save
+                              <FiSave aria-hidden="true" />
                             </button>
                           ) : (
                             <button
                               type="button"
                               className="salary-row-action"
                               aria-label={`Edit salary settings for ${employee.name}`}
-                              title={`Edit salary settings for ${employee.name}`}
+                              title="Edit salary settings"
                               onClick={() => startEditing(employee)}
-                            />
+                            >
+                              <FiEdit2 aria-hidden="true" />
+                            </button>
                           )
                         )}
                       </div>
