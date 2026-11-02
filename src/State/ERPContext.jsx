@@ -180,6 +180,17 @@ export function ERPProvider({ children }) {
     },
     addLedgerEntry: (record) => { assertAccess('/salary'); const id = createId(); setData((prev) => ({ ...prev, ledger: [{ ...record, id }, ...prev.ledger] })); recordOwnerActivity('Added salary ledger entry', 'Salary', id); },
     addSalary: (record) => { assertAccess('/salary'); const id = createId(); setData((prev) => ({ ...prev, salary: [{ ...record, id }, ...prev.salary] })); recordOwnerActivity('Updated salary information', 'Salary', id); },
+    updateSalary: (id, record) => {
+      assertAccess('/salary');
+      if (!data.salary.some((item) => item.id === id)) {
+        throw new Error('This salary register line is no longer available.');
+      }
+      setData((previous) => ({
+        ...previous,
+        salary: previous.salary.map((item) => item.id === id ? { ...item, ...record, id } : item),
+      }));
+      recordOwnerActivity('Updated salary information', 'Salary', id);
+    },
     saveSalarySettings: (employeeId, settings) => {
       assertAccess('/salary');
       if (!data.employees.some((employee) => employee.id === employeeId)) {
