@@ -11,7 +11,8 @@ function DashboardPage() {
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const todayAttendance = attendance?.[todayKey] || {};
   const attendanceCounts = employees.reduce((counts, employee) => {
-    const status = todayAttendance[employee.id];
+    const record = todayAttendance[employee.id];
+    const status = typeof record === 'string' ? record : record?.status;
     return status in counts ? { ...counts, [status]: counts[status] + 1 } : counts;
   }, { Present: 0, Late: 0, Absent: 0 });
   const pendingSalaryCount = salary.filter((record) => record.status !== 'Paid').length;

@@ -23,7 +23,7 @@ function getSalaryPeriodDays(employee) {
 
 function getAttendanceSummary(employeeId, date, attendance) {
   if (!employeeId || !/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
-    return { workingDays: 0, overtimeHours: 0 };
+    return { workingDays: 0, overtimeHours: 0, hasAttendance: false };
   }
 
   const [year, month] = date.split('-').map(Number);
@@ -31,14 +31,16 @@ function getAttendanceSummary(employeeId, date, attendance) {
   return Object.entries(attendance || {}).reduce((summary, [attendanceDate, dayRecords]) => {
     if (!attendanceDate.startsWith(monthPrefix)) return summary;
     const record = dayRecords?.[employeeId];
+    if (record == null) return summary;
+    summary.hasAttendance = true;
     const status = typeof record === 'string' ? record : record?.status;
     if (status === 'Present' || status === 'Late') summary.workingDays += 1;
-    const hours = typeof record === 'object'
+    const hours = (status === 'Present' || status === 'Late') && typeof record === 'object'
       ? Number(record.overtimeHours ?? record.otHours ?? record.overtime ?? record.ot ?? 0)
       : 0;
     if (Number.isFinite(hours) && hours > 0) summary.overtimeHours += hours;
     return summary;
-  }, { workingDays: 0, overtimeHours: 0 });
+  }, { workingDays: 0, overtimeHours: 0, hasAttendance: false });
 }
 
 function getEmployeeLedger(employee, ledger) {
@@ -109,13 +111,18 @@ function SalaryPage() {
     const employee = employeeById(record.employeeId)
       || employees.find((item) => item.name === record.employee);
     const date = record.date || getLocalDateString();
+    const attendanceSummary = getAttendanceSummary(employee?.id, date, attendance);
     return {
       ...record,
-      ...getAttendanceSummary(employee?.id, date, attendance),
+      ...attendanceSummary,
       ...getLedgerAmounts(employee, ledger),
       ...record,
-      workingDays: record.workingDays ?? getAttendanceSummary(employee?.id, date, attendance).workingDays,
-      overtimeHours: record.overtimeHours ?? getAttendanceSummary(employee?.id, date, attendance).overtimeHours,
+      workingDays: attendanceSummary.hasAttendance
+        ? attendanceSummary.workingDays
+        : record.workingDays ?? attendanceSummary.workingDays,
+      overtimeHours: attendanceSummary.hasAttendance
+        ? attendanceSummary.overtimeHours
+        : record.overtimeHours ?? attendanceSummary.overtimeHours,
       salaryPerDay: record.salaryPerDay ?? getDailySalary(employee),
       advanceAmount: record.advanceAmount ?? getLedgerAmounts(employee, ledger).advanceAmount,
       returnAmount: record.returnAmount ?? getLedgerAmounts(employee, ledger).returnAmount,
@@ -193,6 +200,7 @@ function SalaryPage() {
     };
     delete record.isNew;
     delete record.isBlankLine;
+    delete record.hasAttendance;
 
     try {
       if (row.isBlankLine) {

@@ -160,6 +160,22 @@ export function ERPProvider({ children }) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !records || typeof records !== 'object') {
         throw new Error('Choose a valid attendance date and records before saving.');
       }
+      const validStatuses = ['Present', 'Absent', 'Late', 'Leave'];
+      Object.entries(records).forEach(([employeeId, record]) => {
+        if (!data.employees.some((employee) => String(employee.id) === String(employeeId))) {
+          throw new Error('Attendance can only be saved for a registered employee.');
+        }
+        const status = typeof record === 'string' ? record : record?.status;
+        if (!validStatuses.includes(status)) {
+          throw new Error('Choose a valid attendance status before saving.');
+        }
+        if (record && typeof record === 'object'
+          && [record.workingHours, record.overtimeHours].some((hours) => (
+            hours != null && (!Number.isFinite(Number(hours)) || Number(hours) < 0)
+          ))) {
+          throw new Error('Working and overtime hours must be valid non-negative numbers.');
+        }
+      });
       setData((prev) => ({
         ...prev,
         attendance: {
@@ -346,7 +362,8 @@ export function calculateEmployeePayroll(employee, attendance = {}, ledger = [],
     Monthly: 30,
   }[employee.salaryPeriod] || 30;
   const presentDays = Object.values(attendance || {}).reduce((total, dayRecords) => {
-    const status = dayRecords?.[employee.id];
+    const record = dayRecords?.[employee.id];
+    const status = typeof record === 'string' ? record : record?.status;
     return total + (status === 'Present' || status === 'Late' ? 1 : 0);
   }, 0);
   const earned = (Number(employee.salary || 0) / periodDays) * presentDays;
