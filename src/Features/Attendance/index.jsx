@@ -54,6 +54,8 @@ function AttendancePage() {
   const {
     employees = [],
     attendance = {},
+    attendanceLoading = false,
+    attendanceError = '',
     addEmployee,
     updateEmployee,
     deleteEmployee,
@@ -64,6 +66,7 @@ function AttendancePage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [newLine, setNewLine] = useState(null);
   const [draftRows, setDraftRows] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState({ type: '', text: '' });
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [isEmployeeFormOpen, setIsEmployeeFormOpen] = useState(false);
@@ -132,9 +135,16 @@ function AttendancePage() {
     setFeedback({ type: '', text: '' });
   };
 
-  const saveRow = (row) => {
+  const saveRow = async (row) => {
     const employeeId = row.employeeId;
     if (employeeId === '' || employeeId == null || !row.status) return;
+    if (attendanceLoading || attendanceError) {
+      setFeedback({
+        type: 'error',
+        text: attendanceError || 'Attendance is still loading. Please wait before saving.',
+      });
+      return;
+    }
     const employee = employees.find((item) => String(item.id) === String(employeeId));
     if (!employee) {
       setFeedback({ type: 'error', text: 'Select a registered employee before saving attendance.' });
@@ -157,7 +167,8 @@ function AttendancePage() {
     };
 
     try {
-      saveAttendance(selectedDate, { [employee.id]: record });
+      setIsSaving(true);
+      await saveAttendance(selectedDate, { [employee.id]: record });
       if (isNew) setNewLine(null);
       else {
         setDraftRows((previous) => {
@@ -169,6 +180,62 @@ function AttendancePage() {
       setFeedback({ type: 'success', text: `Attendance saved for ${employee.name}.` });
     } catch (error) {
       setFeedback({ type: 'error', text: error.message || 'Unable to save attendance.' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveAllAttendance = async () => {
+    if (attendanceLoading || attendanceError) {
+      setFeedback({
+        type: 'error',
+        text: attendanceError || 'Attendance is still loading. Please wait before saving.',
+      });
+      return;
+    }
+
+    const changedRows = rows
+      .filter((row) => row.isNew ? Boolean(newLine) : Boolean(draftRows[row.id]))
+      .map((row) => ({ ...row, ...(row.isNew ? newLine : draftRows[row.id]) }));
+    const records = {};
+    for (const row of changedRows) {
+      if (!row.status) {
+        setFeedback({ type: 'error', text: `Choose an attendance status for ${row.employeeName || 'the new employee'} before saving.` });
+        return;
+      }
+      if (row.isNew && dayRecords[row.employeeId]) {
+        setFeedback({ type: 'error', text: `${row.employeeName} already has an attendance record for this date.` });
+        return;
+      }
+      const values = getAttendanceValues(row);
+      records[row.employeeId] = {
+        status: values.status,
+        inTime: values.inTime,
+        outTime: values.outTime,
+        workingHours: values.workingHours,
+        overtimeHours: values.overtimeHours,
+        remarks: row.remarks || '',
+      };
+    }
+    if (Object.keys(records).length === 0) return;
+
+    setIsSaving(true);
+    try {
+      await saveAttendance(selectedDate, records);
+      setDraftRows((previous) => {
+        const next = { ...previous };
+        changedRows.filter((row) => !row.isNew).forEach((row) => delete next[row.id]);
+        return next;
+      });
+      if (changedRows.some((row) => row.isNew)) setNewLine(null);
+      setFeedback({
+        type: 'success',
+        text: `Attendance saved for ${changedRows.length} employee${changedRows.length === 1 ? '' : 's'} on ${selectedDate}.`,
+      });
+    } catch (error) {
+      setFeedback({ type: 'error', text: error.message || 'Unable to save attendance.' });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -320,6 +387,11 @@ function AttendancePage() {
             </label>
           </div>
         </div>
+        {(attendanceLoading || attendanceError) && (
+          <p className={`attendance-feedback ${attendanceError ? 'error' : ''}`} role={attendanceError ? 'alert' : 'status'}>
+            {attendanceError || 'Loading saved attendance…'}
+          </p>
+        )}
 
         <div className="attendance-table-scroll">
           <table className="erp-table attendance-table attendance-register-table">
@@ -463,9 +535,18 @@ function AttendancePage() {
             type="button"
             className="secondary-button attendance-add-line-button"
             onClick={addLine}
-            disabled={Boolean(newLine) || !employees.some((employee) => !dayRecords[employee.id])}
+            disabled={attendanceLoading || Boolean(newLine) || !employees.some((employee) => !dayRecords[employee.id])}
           >
             <FiPlus aria-hidden="true" /> Add New Line
+          </button>
+          <button
+            type="button"
+            className="secondary-button attendance-add-line-button"
+            onClick={saveAllAttendance}
+            disabled={attendanceLoading || Boolean(attendanceError)
+              || (Object.keys(draftRows).length === 0 && !newLine)}
+          >
+            {isSaving ? 'Saving…' : 'Save Attendance'}
           </button>
           <span>Attendance is unique per employee per date.</span>
         </div>

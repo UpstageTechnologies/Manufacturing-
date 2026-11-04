@@ -7,6 +7,7 @@ import {
   getCurrentUser,
   recordOwnerActivity,
 } from './auth';
+import { initializeAttendanceDatabase, saveAttendanceToDatabase } from './AttendanceDatabase';
 
 const LEGACY_STORAGE_KEY = 'manufacture-erp-data';
 const storageKey = (companyId) => `${LEGACY_STORAGE_KEY}-${companyId}`;
@@ -120,6 +121,9 @@ const ERPContext = createContext(null);
 export function ERPProvider({ children }) {
   const [companyId, setCompanyId] = useState(() => getCurrentUser()?.companyId || '');
   const [data, setData] = useState(() => readStoredData(getCurrentUser()?.companyId));
+  const [attendanceLoad, setAttendanceLoad] = useState({ companyId: '', error: '' });
+  const attendanceLoading = Boolean(companyId && attendanceLoad.companyId !== companyId);
+  const attendanceError = attendanceLoad.companyId === companyId ? attendanceLoad.error : '';
 
   useEffect(() => {
     const refreshCompanyData = () => {
@@ -132,6 +136,26 @@ export function ERPProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    if (!companyId) return undefined;
+
+    let active = true;
+    let errorMessage = '';
+    initializeAttendanceDatabase(companyId, readStoredData(companyId).attendance)
+      .then((attendance) => {
+        if (active) setData((previous) => ({ ...previous, attendance }));
+      })
+      .catch((error) => {
+        console.error(`Unable to load attendance for company ${companyId}.`, error);
+        errorMessage = error.message || 'Unable to load saved attendance.';
+      })
+      .finally(() => {
+        if (active) setAttendanceLoad({ companyId, error: errorMessage });
+      });
+
+    return () => { active = false; };
+  }, [companyId]);
+
+  useEffect(() => {
     if (!companyId) return;
     localStorage.setItem(storageKey(companyId), JSON.stringify(data));
   }, [companyId, data]);
@@ -142,6 +166,8 @@ export function ERPProvider({ children }) {
 
   const value = useMemo(() => ({
     ...data,
+    attendanceLoading,
+    attendanceError,
     addIncome: (record) => { assertAccess('/income'); const id = createId(); setData((prev) => ({ ...prev, income: [{ ...record, id }, ...prev.income] })); recordOwnerActivity('Added income record', 'Income', id); },
     deleteIncome: (id) => { assertAccess('/income'); setData((prev) => ({ ...prev, income: prev.income.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted income record', 'Income', id); },
     addExpense: (record) => { assertAccess('/expense'); const id = createId(); setData((prev) => ({ ...prev, expense: [{ ...record, id }, ...prev.expense] })); recordOwnerActivity('Added expense record', 'Expense', id); },
@@ -155,10 +181,15 @@ export function ERPProvider({ children }) {
     addEmployee: (record) => { assertAccess('/attendance'); const id = createId(); setData((prev) => ({ ...prev, employees: [{ ...record, id }, ...prev.employees] })); recordOwnerActivity('Added employee', 'Attendance', id); },
     updateEmployee: (id, record) => { assertAccess('/attendance'); setData((prev) => ({ ...prev, employees: prev.employees.map((item) => item.id === id ? { ...item, ...record } : item) })); recordOwnerActivity('Updated employee', 'Attendance', id); },
     deleteEmployee: (id) => { assertAccess('/attendance'); setData((prev) => ({ ...prev, employees: prev.employees.filter((item) => item.id !== id) })); recordOwnerActivity('Deleted employee', 'Attendance', id); },
-    saveAttendance: (date, records) => {
+    saveAttendance: async (date, records) => {
       assertAccess('/attendance');
+      if (attendanceLoading) throw new Error('Attendance is still loading. Please wait before saving.');
+      if (attendanceError) throw new Error(`Attendance storage is unavailable: ${attendanceError}`);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !records || typeof records !== 'object') {
         throw new Error('Choose a valid attendance date and records before saving.');
+      }
+      if (Object.keys(records).length === 0) {
+        throw new Error('Add at least one attendance record before saving.');
       }
       const validStatuses = ['Present', 'Absent', 'Late', 'Leave'];
       Object.entries(records).forEach(([employeeId, record]) => {
@@ -176,12 +207,10 @@ export function ERPProvider({ children }) {
           throw new Error('Working and overtime hours must be valid non-negative numbers.');
         }
       });
+      const savedRecords = await saveAttendanceToDatabase(companyId, date, records);
       setData((prev) => ({
         ...prev,
-        attendance: {
-          ...(prev.attendance || {}),
-          [date]: { ...(prev.attendance?.[date] || {}), ...records },
-        },
+        attendance: { ...(prev.attendance || {}), [date]: savedRecords },
       }));
       recordOwnerActivity('Updated attendance', 'Attendance', date);
     },
@@ -339,7 +368,7 @@ export function ERPProvider({ children }) {
       });
       recordOwnerActivity('Deleted journal entry', 'Journal Entry', id);
     },
-  }), [data]);
+  }), [attendanceError, attendanceLoading, companyId, data]);
 
   return <ERPContext.Provider value={value}>{children}</ERPContext.Provider>;
 }
