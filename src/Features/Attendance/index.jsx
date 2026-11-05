@@ -12,7 +12,7 @@ import {
 import { useERP } from '../../State/ERPContext';
 import './Attendance.css';
 
-const attendanceStatuses = ['Present', 'Absent', 'Late', 'Leave'];
+const selectableAttendanceStatuses = ['Present', 'Late', 'Absent'];
 const standardWorkingHours = 8;
 const salaryPeriods = ['Per Day', '7 Days / Weekly', '15 Days / Bi-weekly', 'Monthly'];
 
@@ -22,6 +22,13 @@ const getDateString = (date = new Date()) => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+const formatDate = (date) => new Intl.DateTimeFormat(undefined, {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+}).format(new Date(`${date}T00:00:00`));
 
 function getAttendanceValues(record) {
   const savedStatus = typeof record === 'string' ? record : record?.status || '';
@@ -62,9 +69,9 @@ function AttendancePage() {
     saveAttendance,
   } = useERP();
   const [selectedDate, setSelectedDate] = useState(getDateString);
+  const [isDateSelected, setIsDateSelected] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [newLine, setNewLine] = useState(null);
   const [draftRows, setDraftRows] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState({ type: '', text: '' });
@@ -79,37 +86,29 @@ function AttendancePage() {
   });
 
   const dayRecords = attendance?.[selectedDate] || {};
-  const rows = employees
-    .filter((employee) => !newLine || String(employee.id) !== String(newLine.employeeId))
-    .map((employee) => {
-      const saved = getAttendanceValues(dayRecords[employee.id]);
-      return {
-        ...employee,
-        ...saved,
-        employeeId: employee.id,
-        employeeName: employee.name,
-        mobileNumber: employee.phone || '',
-        remarks: typeof dayRecords[employee.id] === 'object'
-          ? dayRecords[employee.id]?.remarks || ''
-          : '',
-        id: String(employee.id),
-        isNew: false,
-      };
-    });
-  if (newLine) {
-    const employee = employees.find((item) => String(item.id) === String(newLine.employeeId));
-    rows.push({
-      ...newLine,
-      employeeId: employee?.id || '',
-      employeeName: employee?.name || '',
-      mobileNumber: employee?.phone || '',
-      id: 'new-attendance-line',
-      isNew: true,
-    });
-  }
+  const rows = employees.map((employee) => {
+    const saved = getAttendanceValues(dayRecords[employee.id]);
+    return {
+      ...employee,
+      ...saved,
+      employeeId: employee.id,
+      employeeName: employee.name,
+      mobileNumber: employee.phone || '',
+      remarks: typeof dayRecords[employee.id] === 'object'
+        ? dayRecords[employee.id]?.remarks || ''
+        : '',
+      halfDay: typeof dayRecords[employee.id] === 'object'
+        ? Boolean(dayRecords[employee.id]?.halfDay)
+        : false,
+      lateByMinutes: typeof dayRecords[employee.id] === 'object'
+        ? dayRecords[employee.id]?.lateByMinutes ?? ''
+        : '',
+      id: String(employee.id),
+    };
+  });
 
   const visibleRows = rows
-    .map((row) => ({ ...row, ...(row.isNew ? {} : draftRows[row.id]) }))
+    .map((row) => ({ ...row, ...(draftRows[row.id] || {}) }))
     .filter((row) => {
       const query = searchQuery.trim().toLowerCase();
       const matchesSearch = !query || [
@@ -122,67 +121,28 @@ function AttendancePage() {
       return matchesSearch && matchesStatus;
     });
 
-  const counts = rows.reduce((result, row) => {
-    if (attendanceStatuses.includes(row.status)) result[row.status] += 1;
+  const today = getDateString();
+  const dateCards = [...new Set([
+    today,
+    ...Object.keys(attendance || {}).filter((date) => (
+      date < today && /^\d{4}-\d{2}-\d{2}$/.test(date)
+    )),
+    ...(selectedDate < today ? [selectedDate] : []),
+  ])].sort((first, second) => first === today ? -1 : second === today ? 1 : second.localeCompare(first));
+  const getDateCounts = (date) => employees.reduce((result, employee) => {
+    const status = getAttendanceValues(attendance?.[date]?.[employee.id]).status;
+    if (status === 'Present' || status === 'Absent' || status === 'Late') result[status] += 1;
     return result;
-  }, { Present: 0, Absent: 0, Late: 0, Leave: 0 });
+  }, { Present: 0, Absent: 0, Late: 0 });
 
   const changeDate = (date) => {
     if (!date) return;
+    if (date !== selectedDate) setDraftRows({});
     setSelectedDate(date);
-    setDraftRows({});
-    setNewLine(null);
+    setIsDateSelected(true);
+    setSearchQuery('');
+    setStatusFilter('');
     setFeedback({ type: '', text: '' });
-  };
-
-  const saveRow = async (row) => {
-    const employeeId = row.employeeId;
-    if (employeeId === '' || employeeId == null || !row.status) return;
-    if (attendanceLoading || attendanceError) {
-      setFeedback({
-        type: 'error',
-        text: attendanceError || 'Attendance is still loading. Please wait before saving.',
-      });
-      return;
-    }
-    const employee = employees.find((item) => String(item.id) === String(employeeId));
-    if (!employee) {
-      setFeedback({ type: 'error', text: 'Select a registered employee before saving attendance.' });
-      return;
-    }
-
-    const isNew = row.isNew;
-    if (isNew && dayRecords[employee.id]) {
-      setFeedback({ type: 'error', text: `${employee.name} already has an attendance record for this date.` });
-      return;
-    }
-    const values = getAttendanceValues(row);
-    const record = {
-      status: values.status,
-      inTime: values.inTime,
-      outTime: values.outTime,
-      workingHours: values.workingHours,
-      overtimeHours: values.overtimeHours,
-      remarks: row.remarks || '',
-    };
-
-    try {
-      setIsSaving(true);
-      await saveAttendance(selectedDate, { [employee.id]: record });
-      if (isNew) setNewLine(null);
-      else {
-        setDraftRows((previous) => {
-          const next = { ...previous };
-          delete next[row.id];
-          return next;
-        });
-      }
-      setFeedback({ type: 'success', text: `Attendance saved for ${employee.name}.` });
-    } catch (error) {
-      setFeedback({ type: 'error', text: error.message || 'Unable to save attendance.' });
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const saveAllAttendance = async () => {
@@ -195,16 +155,12 @@ function AttendancePage() {
     }
 
     const changedRows = rows
-      .filter((row) => row.isNew ? Boolean(newLine) : Boolean(draftRows[row.id]))
-      .map((row) => ({ ...row, ...(row.isNew ? newLine : draftRows[row.id]) }));
+      .filter((row) => Boolean(draftRows[row.id]))
+      .map((row) => ({ ...row, ...draftRows[row.id] }));
     const records = {};
     for (const row of changedRows) {
       if (!row.status) {
-        setFeedback({ type: 'error', text: `Choose an attendance status for ${row.employeeName || 'the new employee'} before saving.` });
-        return;
-      }
-      if (row.isNew && dayRecords[row.employeeId]) {
-        setFeedback({ type: 'error', text: `${row.employeeName} already has an attendance record for this date.` });
+        setFeedback({ type: 'error', text: `Choose an attendance status for ${row.employeeName} before saving.` });
         return;
       }
       const values = getAttendanceValues(row);
@@ -215,6 +171,8 @@ function AttendancePage() {
         workingHours: values.workingHours,
         overtimeHours: values.overtimeHours,
         remarks: row.remarks || '',
+        halfDay: Boolean(row.halfDay),
+        lateByMinutes: row.lateByMinutes === '' ? '' : Number(row.lateByMinutes),
       };
     }
     if (Object.keys(records).length === 0) return;
@@ -224,13 +182,12 @@ function AttendancePage() {
       await saveAttendance(selectedDate, records);
       setDraftRows((previous) => {
         const next = { ...previous };
-        changedRows.filter((row) => !row.isNew).forEach((row) => delete next[row.id]);
+        changedRows.forEach((row) => delete next[row.id]);
         return next;
       });
-      if (changedRows.some((row) => row.isNew)) setNewLine(null);
       setFeedback({
         type: 'success',
-        text: `Attendance saved for ${changedRows.length} employee${changedRows.length === 1 ? '' : 's'} on ${selectedDate}.`,
+        text: `Attendance saved for ${changedRows.length} employee${changedRows.length === 1 ? '' : 's'}.`,
       });
     } catch (error) {
       setFeedback({ type: 'error', text: error.message || 'Unable to save attendance.' });
@@ -241,13 +198,21 @@ function AttendancePage() {
 
   const updateRow = (row, field, value) => {
     setFeedback({ type: '', text: '' });
-    if (row.isNew) {
-      setNewLine((current) => ({ ...current, [field]: value }));
-      return;
-    }
     setDraftRows((current) => ({
       ...current,
       [row.id]: { ...current[row.id], [field]: value },
+    }));
+  };
+
+  const updateStatus = (row, status) => {
+    setFeedback({ type: '', text: '' });
+    setDraftRows((current) => ({
+      ...current,
+      [row.id]: {
+        ...current[row.id],
+        status,
+        ...(status === 'Absent' ? { inTime: '', outTime: '', lateByMinutes: '', halfDay: false } : {}),
+      },
     }));
   };
 
@@ -290,81 +255,79 @@ function AttendancePage() {
     }
   };
 
-  const addLine = () => {
-    if (newLine) return;
-    setNewLine({
-      employeeId: '',
-      status: 'Present',
-      inTime: '',
-      outTime: '',
-      remarks: '',
-    });
-    setFeedback({ type: '', text: '' });
-  };
-
   return (
     <div className="feature-page attendance-page">
       <div className="feature-header attendance-register-header">
         <div>
           <p className="eyebrow">Workforce</p>
-          <h1 className="page-title">Employee Attendance Register</h1>
-          <p className="attendance-register-subtitle">Daily time, attendance and overtime tracking</p>
+          <h1 className="page-title">{isDateSelected ? `Attendance · ${formatDate(selectedDate)}` : 'Attendance'}</h1>
+          <p className="attendance-register-subtitle">
+            {isDateSelected ? 'Employee attendance register' : 'Select a date to view or update attendance'}
+          </p>
         </div>
         <div className="attendance-register-controls">
-          <label>
-            <span>Date</span>
-            <input
-              className="attendance-date-input"
-              type="date"
-              aria-label="Attendance date"
-              value={selectedDate}
-              onChange={(event) => changeDate(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Month filter</span>
-            <input
-              className="attendance-date-input"
-              type="month"
-              aria-label="Attendance month filter"
-              value={selectedDate.slice(0, 7)}
-              onChange={(event) => changeDate(event.target.value ? `${event.target.value}-01` : selectedDate)}
-            />
-          </label>
+          {!isDateSelected && (
+            <label>
+              <span>Choose date</span>
+              <input
+                className="attendance-date-input"
+                type="date"
+                aria-label="Choose attendance date"
+                max={today}
+                value={selectedDate}
+                onChange={(event) => changeDate(event.target.value)}
+              />
+            </label>
+          )}
           <button type="button" className="secondary-button attendance-add-employee" onClick={() => openEmployeeForm()}>
             <FiPlus /> Add Employee
           </button>
         </div>
       </div>
 
-      <section className="attendance-summary-grid" aria-label="Attendance summary">
-        <article className="attendance-summary-card total">
-          <span className="attendance-summary-icon"><FiUsers /></span>
-          <div><span>Total Employees</span><strong>{employees.length}</strong></div>
-        </article>
-        <article className="attendance-summary-card present">
-          <span className="attendance-summary-icon"><FiCheckCircle /></span>
-          <div><span>Present</span><strong>{counts.Present}</strong></div>
-        </article>
-        <article className="attendance-summary-card absent">
-          <span className="attendance-summary-icon"><FiXCircle /></span>
-          <div><span>Absent</span><strong>{counts.Absent}</strong></div>
-        </article>
-        <article className="attendance-summary-card late">
-          <span className="attendance-summary-icon"><FiClock /></span>
-          <div><span>Late</span><strong>{counts.Late}</strong></div>
-        </article>
-        <article className="attendance-summary-card leave">
-          <span className="attendance-summary-icon"><FiUsers /></span>
-          <div><span>Leave</span><strong>{counts.Leave}</strong></div>
-        </article>
-      </section>
+      {(attendanceLoading || attendanceError) && (
+        <p className={`attendance-feedback ${attendanceError ? 'error' : ''}`} role={attendanceError ? 'alert' : 'status'}>
+          {attendanceError || 'Loading saved attendance…'}
+        </p>
+      )}
+
+      {!isDateSelected ? (
+        <section className="attendance-date-grid" aria-label="Attendance by date">
+          {dateCards.map((date) => {
+            const dateCounts = getDateCounts(date);
+            return (
+              <button
+                type="button"
+                key={date}
+                className={`attendance-date-card${date === today ? ' today' : ''}`}
+                onClick={() => changeDate(date)}
+              >
+                <span className="attendance-date-card-heading">
+                  <strong>{formatDate(date)}</strong>
+                  {date === today && <span className="attendance-today-badge">Today</span>}
+                </span>
+                <span className="attendance-date-total">
+                  <FiUsers aria-hidden="true" /> Total Employees <strong>{employees.length}</strong>
+                </span>
+                <span className="attendance-date-counts">
+                  <span className="present"><FiCheckCircle aria-hidden="true" /> Present <strong>{dateCounts.Present}</strong></span>
+                  <span className="absent"><FiXCircle aria-hidden="true" /> Absent <strong>{dateCounts.Absent}</strong></span>
+                  <span className="late"><FiClock aria-hidden="true" /> Late <strong>{dateCounts.Late}</strong></span>
+                </span>
+              </button>
+            );
+          })}
+        </section>
+      ) : (
 
       <section className="content-panel attendance-panel attendance-register-panel" aria-label="Employee attendance register">
         <div className="attendance-register-toolbar">
           <div>
+            <button type="button" className="attendance-back-button" onClick={() => setIsDateSelected(false)}>
+              All dates
+            </button>
             <h3>Daily Register</h3>
-            <p>Standard shift: {standardWorkingHours} hours · changes save when you leave a cell</p>
+            <p>{employees.length} employees · existing saved timings only</p>
           </div>
           <div className="attendance-table-tools">
             <label className="attendance-search">
@@ -382,145 +345,109 @@ function AttendancePage() {
               <select aria-label="Filter attendance status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                 <option value="">All statuses</option>
                 <option value="Unmarked">Unmarked</option>
-                {attendanceStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                {selectableAttendanceStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </label>
           </div>
         </div>
-        {(attendanceLoading || attendanceError) && (
-          <p className={`attendance-feedback ${attendanceError ? 'error' : ''}`} role={attendanceError ? 'alert' : 'status'}>
-            {attendanceError || 'Loading saved attendance…'}
-          </p>
-        )}
-
         <div className="attendance-table-scroll">
           <table className="erp-table attendance-table attendance-register-table">
             <thead>
               <tr>
-                <th>Date</th>
                 <th>Employee ID</th>
                 <th>Employee Name</th>
                 <th>Mobile Number</th>
+                <th>Attendance Status</th>
                 <th>In Time</th>
                 <th>Out Time</th>
-                <th>Total Working Hours</th>
-                <th>OT Hours</th>
-                <th>Attendance Status</th>
-                <th>Remarks</th>
               </tr>
             </thead>
             <tbody>
               {visibleRows.map((row) => {
                 const employee = employees.find((item) => String(item.id) === String(row.employeeId));
-                const label = row.employeeName || 'new attendance line';
-                const values = getAttendanceValues(row);
-                const absentOrLeave = row.status === 'Absent' || row.status === 'Leave';
                 const setCell = (field, value) => updateRow(row, field, value);
-                const saveCell = () => saveRow({
-                  ...row,
-                  ...(row.isNew ? newLine : draftRows[row.id]),
-                });
                 return (
-                  <tr key={row.id} className={row.isNew ? 'attendance-new-row' : ''}>
-                    <td>
-                      <time dateTime={selectedDate}>{selectedDate}</time>
-                    </td>
+                  <tr key={row.id}>
                     <td className="attendance-id-cell">{employee?.id ?? '—'}</td>
                     <td className="attendance-name-cell">
-                      {row.isNew ? (
-                        <select
-                          aria-label="Select employee for new attendance line"
-                          value={row.employeeId || ''}
-                          onChange={(event) => {
-                            const selectedEmployee = employees.find((item) => String(item.id) === event.target.value);
-                            if (!selectedEmployee) return;
-                            if (dayRecords[selectedEmployee.id]) {
-                              setFeedback({ type: 'error', text: `${selectedEmployee.name} already has an attendance record for this date.` });
-                              return;
-                            }
-                            setCell('employeeId', event.target.value);
-                          }}
-                          onBlur={saveCell}
-                        >
-                          <option value="">Select employee</option>
-                          {employees
-                            .filter((item) => !dayRecords[item.id])
-                            .map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                        </select>
-                      ) : (
-                        <>
-                          <span>{row.employeeName}</span>
-                          <span className="attendance-employee-actions">
-                            <button type="button" aria-label={`Edit ${row.employeeName}`} title="Edit employee" onClick={() => openEmployeeForm(employee)}><FiEdit2 /></button>
-                            <button type="button" aria-label={`Delete ${row.employeeName}`} title="Delete employee" onClick={() => deleteEmployee(employee.id)}><FiTrash2 /></button>
-                          </span>
-                        </>
-                      )}
+                      <span>{row.employeeName}</span>
+                      <span className="attendance-employee-actions">
+                        <button type="button" aria-label={`Edit ${row.employeeName}`} title="Edit employee" onClick={() => openEmployeeForm(employee)}><FiEdit2 /></button>
+                        <button type="button" aria-label={`Delete ${row.employeeName}`} title="Delete employee" onClick={() => deleteEmployee(employee.id)}><FiTrash2 /></button>
+                      </span>
                     </td>
                     <td>{row.mobileNumber || '—'}</td>
                     <td>
-                      <input
-                        type="time"
-                        aria-label={`In time for ${label}`}
-                        value={row.inTime || ''}
-                        disabled={absentOrLeave}
-                        onChange={(event) => setCell('inTime', event.target.value)}
-                        onBlur={saveCell}
-                      />
+                      <div className="attendance-status-controls" role="group" aria-label={`Attendance status for ${row.employeeName}`}>
+                        {selectableAttendanceStatuses.map((status) => {
+                          const StatusIcon = status === 'Present' ? FiCheckCircle : status === 'Late' ? FiClock : FiXCircle;
+                          return (
+                            <button
+                              type="button"
+                              key={status}
+                              className={`attendance-status-option ${status.toLowerCase()}${row.status === status ? ' selected' : ''}`}
+                              aria-label={`${status} for ${row.employeeName}`}
+                              aria-pressed={row.status === status}
+                              disabled={attendanceLoading || Boolean(attendanceError) || isSaving}
+                              onClick={() => updateStatus(row, status)}
+                            >
+                              <StatusIcon aria-hidden="true" /><span>{status}</span>
+                            </button>
+                          );
+                        })}
+                        <label className="attendance-half-day">
+                          <input
+                            type="checkbox"
+                            aria-label={`Half day for ${row.employeeName}`}
+                            checked={Boolean(row.halfDay)}
+                            disabled={row.status === 'Absent'}
+                            onChange={(event) => setCell('halfDay', event.target.checked)}
+                          />
+                          <span>Half day</span>
+                        </label>
+                      </div>
                     </td>
-                    <td>
-                      <input
-                        type="time"
-                        aria-label={`Out time for ${label}`}
-                        value={row.outTime || ''}
-                        disabled={absentOrLeave}
-                        onChange={(event) => setCell('outTime', event.target.value)}
-                        onBlur={saveCell}
-                      />
+                    <td className="attendance-time-cell">
+                      {row.status !== 'Absent' && (
+                        <>
+                          {row.status === 'Late' && (
+                            <label className="attendance-late-adjustment">
+                              <span>Late by</span>
+                              <input
+                                type="number"
+                                min="0"
+                                aria-label={`Late by minutes for ${row.employeeName}`}
+                                placeholder="min"
+                                value={row.lateByMinutes ?? ''}
+                                onChange={(event) => setCell('lateByMinutes', event.target.value)}
+                              />
+                              <span>min</span>
+                            </label>
+                          )}
+                          <input
+                            type="time"
+                            aria-label={`In time for ${row.employeeName}`}
+                            value={row.inTime || ''}
+                            onChange={(event) => setCell('inTime', event.target.value)}
+                          />
+                        </>
+                      )}
                     </td>
-                    <td className="attendance-calculated-cell">{absentOrLeave ? '—' : `${values.workingHours.toFixed(2)} h`}</td>
-                    <td className="attendance-calculated-cell attendance-overtime-cell">{absentOrLeave ? '—' : `${values.overtimeHours.toFixed(2)} h`}</td>
-                    <td>
-                      <select
-                        aria-label={`Attendance status for ${label}`}
-                        value={row.status || ''}
-                        onChange={(event) => {
-                          const status = event.target.value;
-                          setCell('status', status);
-                          if (row.isNew) {
-                            setNewLine((current) => ({
-                              ...current,
-                              status,
-                              ...(status === 'Absent' || status === 'Leave' ? { inTime: '', outTime: '' } : {}),
-                            }));
-                          } else if (status === 'Absent' || status === 'Leave') {
-                            setDraftRows((current) => ({
-                              ...current,
-                              [row.id]: { ...current[row.id], status, inTime: '', outTime: '' },
-                            }));
-                          }
-                        }}
-                        onBlur={saveCell}
-                      >
-                        <option value="">Select status</option>
-                        {attendanceStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        aria-label={`Remarks for ${label}`}
-                        placeholder="Add remark"
-                        value={row.remarks || ''}
-                        onChange={(event) => setCell('remarks', event.target.value)}
-                        onBlur={saveCell}
-                      />
+                    <td className="attendance-time-cell">
+                      {row.status !== 'Absent' && (
+                        <input
+                          type="time"
+                          aria-label={`Out time for ${row.employeeName}`}
+                          value={row.outTime || ''}
+                          onChange={(event) => setCell('outTime', event.target.value)}
+                        />
+                      )}
                     </td>
                   </tr>
                 );
               })}
               {visibleRows.length === 0 && (
-                <tr><td className="attendance-empty-state" colSpan="10">No employees match the selected filters.</td></tr>
+                <tr><td className="attendance-empty-state" colSpan="6">No employees match the selected filters.</td></tr>
               )}
             </tbody>
           </table>
@@ -534,23 +461,15 @@ function AttendancePage() {
           <button
             type="button"
             className="secondary-button attendance-add-line-button"
-            onClick={addLine}
-            disabled={attendanceLoading || Boolean(newLine) || !employees.some((employee) => !dayRecords[employee.id])}
-          >
-            <FiPlus aria-hidden="true" /> Add New Line
-          </button>
-          <button
-            type="button"
-            className="secondary-button attendance-add-line-button"
             onClick={saveAllAttendance}
             disabled={attendanceLoading || Boolean(attendanceError)
-              || (Object.keys(draftRows).length === 0 && !newLine)}
+              || Object.keys(draftRows).length === 0 || isSaving}
           >
             {isSaving ? 'Saving…' : 'Save Attendance'}
           </button>
-          <span>Attendance is unique per employee per date.</span>
         </div>
       </section>
+      )}
 
       {isEmployeeFormOpen && (
         <div className="modal-overlay" onClick={() => setIsEmployeeFormOpen(false)}>
